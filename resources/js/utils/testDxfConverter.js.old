@@ -1,0 +1,40 @@
+import { ShopMap } from './dxfConverter.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Read the test DXF file
+const dxfContent = readFileSync(join(__dirname, 'test.dxf'), 'utf-8');
+
+console.log('Reading test.dxf...\n');
+
+// Convert to ShopMap
+const shopMap = ShopMap.fromDXFFile(dxfContent);
+
+if (shopMap) {
+  console.log('Successfully converted DXF to ShopMap!\n');
+  
+  console.log('=== BOUNDS ===');
+  console.log(shopMap.bounds);
+  console.log();
+  
+  console.log('=== ENTITIES SUMMARY ===');
+  console.log(`Lines: ${shopMap.entities.lines.length}`);
+  console.log(`Polylines: ${shopMap.entities.polylines.length}`);
+  console.log(`Circles: ${shopMap.entities.circles.length}`);
+  console.log(`Arcs: ${shopMap.entities.arcs.length}`);
+  console.log(`Text: ${shopMap.entities.text.length}`);
+  console.log();
+  
+  console.log('=== LAYERS ===');
+  console.log(Object.keys(shopMap.layers));
+  console.log();
+  
+  console.log('=== DETAILED ENTITIES ===');
+  console.log(JSON.stringify(shopMap.toJSON(), null, 2));
+} else {
+  console.error('Failed to convert DXF file');
+}
