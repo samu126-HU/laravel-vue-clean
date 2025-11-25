@@ -4,3 +4,79 @@
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+
+/* Ocean Blue & Coral Color Palette */
+
+/* Shared palette variables required by both light and dark themes */
+
+:root {
+  /* Base Colors */
+  --color-text-dark: #F1F5F9;
+  --color-text-light: #1E293B;
+
+  /* Light Mode Colors */
+  --color-background: #F0F4F8;
+  --color-surface: #FFFFFF;
+  --color-primary: #0EA5E9;
+  --color-secondary: #FF6B6B;
+  --color-accent: #10B981;
+  --color-text: #1E293B;
+  --color-outline: #d4d4d4;
+  --color-button-primary: var(--color-blue-600);
+  --color-button-accent: var(--color-blue-700);
+}
+
+.dark {
+  /* Dark Mode Colors */
+  --color-background: #0F172A;
+  --color-surface: #1E293B;
+  --color-primary: #38BDF8;
+  --color-secondary: #FF8787;
+  --color-accent: #34D399;
+  --color-text: #F1F5F9;
+  --color-text-reverse: #1E293B;
+  --color-outline: #000000;
+  --color-button-primary: var(--color-blue-600);
+  --color-button-accent: var(--color-blue-700);
+}
+
+/* Theme Utility Classes */
+.theme-background {
+  background-color: var(--color-background);
+}
+
+.theme-surface {
+  background-color: var(--color-surface);
+}
+
+.theme-primary {
+  background-color: var(--color-primary);
+}
+
+.theme-secondary {
+  background-color: var(--color-secondary);
+}
+
+.theme-accent {
+  background-color: var(--color-accent);
+}
+
+.theme-text {
+  color: var(--color-text);
+}
+
+.theme-btn-primary {
+    color: var(--color-text-dark);
+    background-color: var(--color-button-primary);
+}
+.theme-btn-primary:hover {
+    background-color: var(--color-button-accent);
+}
+
+.shadow-background-bottom {
+    box-shadow: var(--color-outline) 0px 2px 4px -1px;
+}
+
+.shadow-background-top {
+    box-shadow: var(--color-outline) 0px -2px 4px -1px;
+}
