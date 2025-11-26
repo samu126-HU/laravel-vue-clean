@@ -56,7 +56,8 @@ export class ShopMap {
       polylines: [],
       circles: [],
       arcs: [],
-      text: []
+      text: [],
+      shelves: [] // Grouped connected lines/polylines
     };
   }
 
@@ -76,6 +77,16 @@ export class ShopMap {
       allPoints.push(...poly.points);
     });
 
+    // Collect all points from shelves
+    this.entities.shelves.forEach(shelf => {
+      shelf.lines.forEach(line => {
+        allPoints.push(line.start, line.end);
+      });
+      shelf.polylines.forEach(poly => {
+        allPoints.push(...poly.points);
+      });
+    });
+
     // Calculate bounds
     allPoints.forEach(point => {
       this.bounds.minX = Math.min(this.bounds.minX, point.x);
@@ -86,6 +97,157 @@ export class ShopMap {
 
     this.bounds.width = this.bounds.maxX - this.bounds.minX;
     this.bounds.height = this.bounds.maxY - this.bounds.minY;
+  }
+
+  /**
+   * Group connected lines and polylines into shelf objects
+   * @param {Array} lines - Lines to group
+   * @param {Array} polylines - Polylines to group
+   * @returns {Array} Array of shelf objects
+   */
+  groupConnectedEntities(lines, polylines) {
+    const TOLERANCE = 0.1; // Distance threshold for considering points connected
+    
+    const arePointsClose = (p1, p2) => {
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      return Math.sqrt(dx * dx + dy * dy) < TOLERANCE;
+    };
+
+    const shelves = [];
+    const usedLines = new Set();
+    const usedPolys = new Set();
+
+    // Helper to find connected entities
+    const findConnected = (startLines, startPolys) => {
+      const shelfLines = [...startLines];
+      const shelfPolys = [...startPolys];
+      const endpoints = [];
+
+      // Collect all endpoints from starting entities
+      startLines.forEach(line => {
+        endpoints.push(line.start, line.end);
+      });
+      startPolys.forEach(poly => {
+        endpoints.push(...poly.points);
+      });
+
+      let foundNew = true;
+      while (foundNew) {
+        foundNew = false;
+
+        // Check remaining lines
+        for (let i = 0; i < lines.length; i++) {
+          if (usedLines.has(i)) continue;
+          
+          const line = lines[i];
+          const isConnected = endpoints.some(ep => 
+            arePointsClose(ep, line.start) || arePointsClose(ep, line.end)
+          );
+
+          if (isConnected) {
+            shelfLines.push(line);
+            endpoints.push(line.start, line.end);
+            usedLines.add(i);
+            foundNew = true;
+          }
+        }
+
+        // Check remaining polylines
+        for (let i = 0; i < polylines.length; i++) {
+          if (usedPolys.has(i)) continue;
+          
+          const poly = polylines[i];
+          const isConnected = endpoints.some(ep => 
+            poly.points.some(p => arePointsClose(ep, p))
+          );
+
+          if (isConnected) {
+            shelfPolys.push(poly);
+            endpoints.push(...poly.points);
+            usedPolys.add(i);
+            foundNew = true;
+          }
+        }
+      }
+
+      return { lines: shelfLines, polylines: shelfPolys };
+    };
+
+    // Start with each unused line
+    for (let i = 0; i < lines.length; i++) {
+      if (usedLines.has(i)) continue;
+      
+      usedLines.add(i);
+      const connected = findConnected([lines[i]], []);
+      
+      if (connected.lines.length > 0 || connected.polylines.length > 0) {
+        shelves.push({
+          type: 'shelf',
+          id: shelves.length,
+          lines: connected.lines,
+          polylines: connected.polylines,
+          bounds: this.calculateShelfBounds(connected)
+        });
+      }
+    }
+
+    // Start with each unused polyline
+    for (let i = 0; i < polylines.length; i++) {
+      if (usedPolys.has(i)) continue;
+      
+      usedPolys.add(i);
+      const connected = findConnected([], [polylines[i]]);
+      
+      if (connected.lines.length > 0 || connected.polylines.length > 0) {
+        shelves.push({
+          type: 'shelf',
+          id: shelves.length,
+          lines: connected.lines,
+          polylines: connected.polylines,
+          bounds: this.calculateShelfBounds(connected)
+        });
+      }
+    }
+
+    return shelves;
+  }
+
+  /**
+   * Calculate bounding box for a shelf
+   * @param {Object} shelf - Shelf with lines and polylines
+   * @returns {Object} Bounds {minX, maxX, minY, maxY, width, height}
+   */
+  calculateShelfBounds(shelf) {
+    const bounds = {
+      minX: Infinity,
+      maxX: -Infinity,
+      minY: Infinity,
+      maxY: -Infinity
+    };
+
+    const updateBounds = (point) => {
+      bounds.minX = Math.min(bounds.minX, point.x);
+      bounds.maxX = Math.max(bounds.maxX, point.x);
+      bounds.minY = Math.min(bounds.minY, point.y);
+      bounds.maxY = Math.max(bounds.maxY, point.y);
+    };
+
+    shelf.lines.forEach(line => {
+      updateBounds(line.start);
+      updateBounds(line.end);
+    });
+
+    shelf.polylines.forEach(poly => {
+      poly.points.forEach(updateBounds);
+    });
+
+    bounds.width = bounds.maxX - bounds.minX;
+    bounds.height = bounds.maxY - bounds.minY;
+    bounds.centerX = (bounds.minX + bounds.maxX) / 2;
+    bounds.centerY = (bounds.minY + bounds.maxY) / 2;
+
+    return bounds;
   }
 
   /**
@@ -129,6 +291,8 @@ export class ShopMap {
     }
 
     const map = new ShopMap();
+    const shelfLines = [];
+    const shelfPolylines = [];
     
     // Extract lines
     dxfData.entities
@@ -137,7 +301,7 @@ export class ShopMap {
         const start = transformPoint(line.vertices[0].x, line.vertices[0].y);
         const end = transformPoint(line.vertices[1].x, line.vertices[1].y);
         
-        map.entities.lines.push({
+        const lineData = {
           type: 'line',
           start: { 
             x: start.x, 
@@ -151,14 +315,21 @@ export class ShopMap {
           },
           layer: line.layer || 'DEFAULT',
           color: line.color
-        });
+        };
+
+        // Separate SHELVES layer lines for grouping
+        if (line.layer === 'SHELVES') {
+          shelfLines.push(lineData);
+        } else {
+          map.entities.lines.push(lineData);
+        }
       });
     
     // Extract polylines (POLYLINE and LWPOLYLINE)
     dxfData.entities
       .filter(e => e.type === 'POLYLINE' || e.type === 'LWPOLYLINE')
       .forEach(poly => {
-        map.entities.polylines.push({
+        const polyData = {
           type: 'polyline',
           points: poly.vertices.map(v => {
             const point = transformPoint(v.x, v.y);
@@ -171,8 +342,21 @@ export class ShopMap {
           closed: poly.shape || false,
           layer: poly.layer || 'DEFAULT',
           color: poly.color
-        });
+        };
+
+        // Separate SHELVES layer polylines for grouping
+        if (poly.layer === 'SHELVES') {
+          shelfPolylines.push(polyData);
+        } else {
+          map.entities.polylines.push(polyData);
+        }
       });
+
+    // Group SHELVES layer entities into connected shelf objects
+    if (shelfLines.length > 0 || shelfPolylines.length > 0) {
+      map.entities.shelves = map.groupConnectedEntities(shelfLines, shelfPolylines);
+      console.log(`Grouped ${shelfLines.length} lines and ${shelfPolylines.length} polylines into ${map.entities.shelves.length} shelves`);
+    }
 
     // Extract circles
     dxfData.entities

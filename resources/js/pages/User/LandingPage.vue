@@ -12,18 +12,17 @@ function handleMapLoaded(map) {
 </script>
 
 <template>
-  <div class="p-4">
-    <PageHead title="Welcome" />
-    
-    <h1 class="text-4xl font-bold theme-text mb-4">
-      Welcome to FindMyAisle
-    </h1>
+  <PageHead title="Welcome" />
+
+  <div class="h-full flex flex-col p-2">
     
     <DxfUploader @map-loaded="handleMapLoaded" />
 
-    <MapViewer v-if="shopMap" :shop-map="shopMap" />
+    <div v-if="shopMap" class="flex-1 min-h-0">
+      <MapViewer :shop-map="shopMap" />
+    </div>
 
-    <p v-else class="text-lg theme-text opacity-60">
+    <p v-else class="text-lg theme-text opacity-60 p-4">
       Upload a DXF file to visualize your shop floor plan
     </p>
   </div>

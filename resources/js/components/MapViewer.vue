@@ -1,6 +1,18 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { useDarkMode } from '../composables/useDarkMode';
+import { ref, onMounted, onUnmounted } from 'vue';
+import Konva from 'konva';
+import {
+  getColors,
+  renderLines,
+  renderPolylines,
+  renderShelves,
+  renderCircles,
+  renderArcs,
+  renderText,
+  updateShapeColors,
+  updateShapeSelection
+} from '../utils/konvaRenderer';
+import { watchDarkMode } from '../utils/darkModeDetector';
 
 const props = defineProps({
   shopMap: {
@@ -9,18 +21,7 @@ const props = defineProps({
   }
 });
 
-const { isDark } = useDarkMode();
-
-const colors = computed(() => ({
-  walls: isDark.value ? '#e5e7eb' : '#000000',
-  lines: isDark.value ? '#9ca3af' : '#999999',
-  shelves: isDark.value ? '#3b82f6' : '#0066cc',
-  shelvesAlt: isDark.value ? '#6b7280' : '#666666',
-  circles: isDark.value ? '#9ca3af' : '#666666',
-  arcs: isDark.value ? '#9ca3af' : '#666666',
-  text: isDark.value ? '#f3f4f6' : '#000000',
-  background: isDark.value ? '#1f2937' : 'transparent'
-}));
+const emit = defineEmits(['item-selected', 'item-hovered']);
 
 const strokeWidths = {
   lines: 10,
@@ -29,254 +30,288 @@ const strokeWidths = {
   arcs: 10
 };
 
-const svgContent = ref('');
-const svgContainer = ref(null);
+const containerRef = ref(null);
+const stage = ref(null);
+const mainLayer = ref(null);
 const zoom = ref(1);
-const panX = ref(0);
-const panY = ref(0);
-const isDragging = ref(false);
-const dragStart = ref({ x: 0, y: 0 });
+const selectedItem = ref(null);
+const showControls = ref(true);
+const showInfo = ref(true);
+let darkModeCleanup = null;
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 5;
 const ZOOM_STEP = 1.2;
-const ZOOM_WHEEL_STEP = 0.9;
 
-const transform = computed(() => 
-  `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`
-);
-
-watch(
-  () => props.shopMap, 
-  (newMap) => {
-    if (newMap) {
-      generateSVG(newMap);
+onMounted(() => {
+  initKonva();
+  
+  // Watch for dark mode changes and re-render
+  darkModeCleanup = watchDarkMode(() => {
+    if (props.shopMap && stage.value) {
+      renderMap(props.shopMap);
     }
-  }, 
-  { immediate: true, deep: true }
-);
+  });
 
-function generateSVG(map) {
-  if (!map?.bounds) return;
+  // Watch for container resize
+  window.addEventListener('resize', handleResize);
+});
 
-  const svg = buildSvgDocument(map);
-  svgContent.value = svg;
+onUnmounted(() => {
+  if (darkModeCleanup) {
+    darkModeCleanup();
+  }
+  window.removeEventListener('resize', handleResize);
+});
+
+function handleResize() {
+  if (!containerRef.value || !stage.value) return;
+  
+  const width = containerRef.value.offsetWidth;
+  const height = containerRef.value.offsetHeight;
+  
+  stage.value.width(width);
+  stage.value.height(height);
+  
+  if (props.shopMap?.bounds) {
+    fitStageToMap(props.shopMap.bounds, 20);
+  }
 }
 
-function buildSvgDocument(map) {
-  const { viewBox, background } = calculateViewBox(map.bounds);
-  
-  let svg = `<svg viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">`;
-  svg += background;
-  svg += renderEntities(map.entities);
-  svg += '</svg>';
-  
-  return svg;
+function initKonva() {
+  if (!containerRef.value) return;
+
+  const width = containerRef.value.offsetWidth;
+  const height = containerRef.value.offsetHeight;
+
+  stage.value = new Konva.Stage({
+    container: containerRef.value,
+    width: width,
+    height: height,
+    draggable: true
+  });
+
+  mainLayer.value = new Konva.Layer();
+  stage.value.add(mainLayer.value);
+
+  // Zoom with mouse wheel
+  stage.value.on('wheel', (e) => {
+    e.evt.preventDefault();
+
+    const oldScale = stage.value.scaleX();
+    const pointer = stage.value.getPointerPosition();
+
+    const mousePointTo = {
+      x: (pointer.x - stage.value.x()) / oldScale,
+      y: (pointer.y - stage.value.y()) / oldScale,
+    };
+
+    const delta = e.evt.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(ZOOM_MIN, Math.min(oldScale * delta, ZOOM_MAX));
+
+    stage.value.scale({ x: newScale, y: newScale });
+    zoom.value = newScale;
+
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    };
+
+    stage.value.position(newPos);
+  });
+
+  if (props.shopMap) {
+    renderMap(props.shopMap);
+  }
 }
 
-function calculateViewBox(bounds) {
+function renderMap(map) {
+  if (!map?.bounds || !mainLayer.value) return;
+
+  mainLayer.value.destroyChildren();
+  selectedItem.value = null;
+
+  const { bounds, entities } = map;
   const padding = 20;
-  const width = bounds.width + padding * 2;
-  const height = bounds.height + padding * 2;
+  const colors = getColors();
+
+  // Background
+  const bg = new Konva.Rect({
+    x: bounds.minX - padding,
+    y: bounds.minY - padding,
+    width: bounds.width + padding * 2,
+    height: bounds.height + padding * 2,
+  });
+  mainLayer.value.add(bg);
+
+  if (entities) {
+    renderLines(entities.lines, mainLayer.value, colors, strokeWidths);
+    renderPolylines(entities.polylines, mainLayer.value, colors, strokeWidths);
+    renderCircles(entities.circles, mainLayer.value, colors, strokeWidths);
+    renderArcs(entities.arcs, mainLayer.value, colors, strokeWidths);
+    renderShelves(entities.shelves, mainLayer.value, colors, strokeWidths, makeInteractive);
+    renderText(entities.text, mainLayer.value, colors);
+  }
+
+  mainLayer.value.batchDraw();
+  fitStageToMap(bounds, padding);
+}
+
+function makeInteractive(shape) {
+  shape.on('mouseenter', () => {
+    document.body.style.cursor = 'pointer';
+    if (shape !== selectedItem.value) {
+      updateShapeColors(shape, getColors(), strokeWidths, true);
+      mainLayer.value.batchDraw();
+    }
+    emit('item-hovered', shape.attrs.data);
+  });
+
+  shape.on('mouseleave', () => {
+    document.body.style.cursor = 'default';
+    if (shape !== selectedItem.value) {
+      updateShapeColors(shape, getColors(), strokeWidths, false);
+      mainLayer.value.batchDraw();
+    }
+  });
+
+  shape.on('click', () => {
+    selectItem(shape);
+  });
+}
+
+function selectItem(shape) {
+  const colors = getColors();
+
+  // Deselect previous
+  if (selectedItem.value) {
+    updateShapeSelection(selectedItem.value, colors, strokeWidths, false);
+  }
   
-  return {
-    viewBox: `${bounds.minX - padding} ${bounds.minY - padding} ${width} ${height}`,
-    background: `<rect x="${bounds.minX - padding}" y="${bounds.minY - padding}" width="${width}" height="${height}" fill="${colors.value.background}"/>`
-  };
-}
-
-function renderEntities(entities) {
-  if (!entities) return '';
-
-  let svg = '';
-  svg += renderLines(entities.lines);
-  svg += renderPolylines(entities.polylines);
-  svg += renderCircles(entities.circles);
-  svg += renderArcs(entities.arcs);
-  svg += renderText(entities.text);
+  if ((parseInt(shape.index) === parseInt(selectedItem.value?.index))) {
+    // Deselect if clicking the same item
+    selectedItem.value = null;
+    mainLayer.value.batchDraw();
+    emit('item-selected', null);
+    return;
+  }
   
-  return svg;
+  // Select new
+  selectedItem.value = shape;
+  updateShapeSelection(shape, colors, strokeWidths, true);
+
+  mainLayer.value.batchDraw();
+  emit('item-selected', shape.attrs.data);
 }
 
-function renderLines(lines) {
-  if (!lines) return '';
+function fitStageToMap(bounds, padding) {
+  const containerWidth = containerRef.value.offsetWidth;
+  const containerHeight = containerRef.value.offsetHeight;
 
-  return lines.map(line => {
-    const color = line.layer === 'SHELVES' ? colors.value.shelves : colors.value.lines;
-    return `<line x1="${line.start.x}" y1="${line.start.y}" x2="${line.end.x}" y2="${line.end.y}" stroke="${color}" stroke-width="${strokeWidths.lines}" stroke-linecap="round"/>`;
-  }).join('');
-}
+  const mapWidth = bounds.width + padding * 2;
+  const mapHeight = bounds.height + padding * 2;
 
-function renderPolylines(polylines) {
-  if (!polylines) return '';
+  const scaleX = containerWidth / mapWidth;
+  const scaleY = containerHeight / mapHeight;
+  const scale = Math.min(scaleX, scaleY) * 0.9;
 
-  return polylines.map(poly => {
-    const points = poly.points.map(p => `${p.x},${p.y}`).join(' ');
-    const color = poly.layer === 'SHELVES' ? colors.value.shelves : colors.value.lines;
-    return `<polygon points="${points}" fill="${color}" fill-opacity="0.4" stroke="${color}" stroke-width="${strokeWidths.polylines}"/>`;
-  }).join('');
-}
+  stage.value.scale({ x: scale, y: scale });
+  zoom.value = scale;
 
-function renderCircles(circles) {
-  if (!circles) return '';
+  const x = (containerWidth - mapWidth * scale) / 2 - (bounds.minX - padding) * scale;
+  const y = (containerHeight - mapHeight * scale) / 2 - (bounds.minY - padding) * scale;
 
-  return circles.map(circle => {
-    const color = circle.layer === 'SHELVES' ? colors.value.shelves : colors.value.circles;
-    return `<circle cx="${circle.center.x}" cy="${circle.center.y}" r="${circle.radius}" fill="none" stroke="${color}" stroke-width="${strokeWidths.circles}"/>`;
-  }).join('');
-}
-
-function renderArcs(arcs) {
-  if (!arcs) return '';
-
-  return arcs.map(arc => {
-    const { startX, startY, endX, endY, largeArc } = calculateArcPath(arc);
-    const color = arc.layer === 'SHELVES' ? colors.value.shelves : colors.value.arcs;
-    return `<path d="M ${startX} ${startY} A ${arc.radius} ${arc.radius} 0 ${largeArc} 1 ${endX} ${endY}" fill="none" stroke="${color}" stroke-width="${strokeWidths.arcs}"/>`;
-  }).join('');
-}
-
-function calculateArcPath(arc) {
-  const toRadians = (deg) => deg * Math.PI / 180;
-  
-  return {
-    startX: arc.center.x + arc.radius * Math.cos(toRadians(arc.startAngle)),
-    startY: arc.center.y + arc.radius * Math.sin(toRadians(arc.startAngle)),
-    endX: arc.center.x + arc.radius * Math.cos(toRadians(arc.endAngle)),
-    endY: arc.center.y + arc.radius * Math.sin(toRadians(arc.endAngle)),
-    largeArc: (arc.endAngle - arc.startAngle) > 180 ? 1 : 0
-  };
-}
-
-function renderText(texts) {
-  return '';
-  if (!texts) return '';
-
-  return texts.map(text => 
-    `<text x="${text.position.x}" y="${text.position.y}" font-size="${text.height || 16}" fill="${colors.value.text}" text-anchor="middle" font-weight="bold">${text.text}</text>`
-  ).join('');
+  stage.value.position({ x, y });
 }
 
 function zoomIn() {
-  zoom.value = Math.min(zoom.value * ZOOM_STEP, ZOOM_MAX);
+  const newScale = Math.min(zoom.value * ZOOM_STEP, ZOOM_MAX);
+  stage.value.scale({ x: newScale, y: newScale });
+  zoom.value = newScale;
 }
 
 function zoomOut() {
-  zoom.value = Math.max(zoom.value / ZOOM_STEP, ZOOM_MIN);
+  const newScale = Math.max(zoom.value / ZOOM_STEP, ZOOM_MIN);
+  stage.value.scale({ x: newScale, y: newScale });
+  zoom.value = newScale;
 }
 
 function resetView() {
-  zoom.value = 1;
-  panX.value = 0;
-  panY.value = 0;
-}
-
-function handleWheel(event) {
-  event.preventDefault();
-  const delta = event.deltaY > 0 ? ZOOM_WHEEL_STEP : 1 / ZOOM_WHEEL_STEP;
-  zoom.value = clamp(zoom.value * delta, ZOOM_MIN, ZOOM_MAX);
-}
-
-function startDrag(event) {
-  isDragging.value = true;
-  dragStart.value = {
-    x: event.clientX - panX.value,
-    y: event.clientY - panY.value
-  };
-}
-
-function onDrag(event) {
-  if (!isDragging.value) return;
-  
-  panX.value = event.clientX - dragStart.value.x;
-  panY.value = event.clientY - dragStart.value.y;
-}
-
-function stopDrag() {
-  isDragging.value = false;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+  if (props.shopMap?.bounds) {
+    fitStageToMap(props.shopMap.bounds, 20);
+  }
 }
 </script>
 
 <template>
-  <div class="rounded-lg p-4 theme-surface shadow-background-bottom">
-    <h2 class="text-2xl font-semibold mb-2 theme-text">Shop Floor Plan</h2>
-    
-    <!-- Map Info -->
-    <div v-if="shopMap.bounds" class="mb-4 text-sm theme-text opacity-70">
-      <p>Dimensions: {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }} units</p>
-      <p v-if="shopMap.layers">Layers: {{ Object.keys(shopMap.layers).join(', ') }}</p>
-      <p v-if="shopMap.entities">
-        Lines: {{ shopMap.entities.lines?.length || 0 }} | 
-        Polylines: {{ shopMap.entities.polylines?.length || 0 }} | 
-        Text: {{ shopMap.entities.text?.length || 0 }}
-      </p>
+  <div class="relative w-full h-full theme-background rounded-sm overflow-hidden">
+    <!-- Konva Canvas Container -->
+    <div ref="containerRef" class="w-full h-full"></div>
+
+    <!-- Info Panel (Top-left) -->
+    <transition name="slide-right">
+      <div v-show="showInfo" class="absolute top-4 left-4 theme-surface rounded-lg shadow-lg p-4 max-w-sm z-10">
+        <button @click="showInfo = false" class="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-sm theme-text">✕</button>
+        
+        <h2 class="text-lg font-bold theme-text">Floor Plan</h2>
+        <p><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
+      </div>
+    </transition>
+
+    <button v-show="!showInfo" @click="showInfo = true" class="absolute top-4 left-4 theme-surface rounded-lg shadow-lg px-4 py-2 hover:shadow-xl transition-shadow z-10 theme-text font-medium">
+      ℹ️ Info
+    </button>
+
+    <!-- Zoom Controls (Bottom-right, Google Maps style) -->
+    <transition name="slide-left">
+      <div v-show="showControls" class="absolute bottom-24 right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
+        <button @click="zoomIn" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-colors">
+          +
+        </button>
+        <button @click="zoomOut" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-colors">
+          −
+        </button>
+        <button @click="resetView" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-lg transition-colors" title="Reset view">
+          ⟲
+        </button>
+      </div>
+    </transition>
+
+    <!-- Zoom Level Indicator -->
+    <div v-show="showControls" class="absolute bottom-4 right-4 theme-surface rounded-lg shadow-lg px-3 py-2 z-10">
+      <div class="text-xs font-medium theme-text">
+        {{ (zoom * 100).toFixed(0) }}%
+      </div>
     </div>
 
-    <!-- Zoom Controls -->
-    <div class="mb-4 flex gap-2 items-center flex-wrap">
-      <button 
-        @click="zoomIn"
-        class="px-3 py-1 theme-surface hover:theme-primary rounded transition shadow-background-bottom"
-        title="Zoom In"
-      >
-        <span class="text-xl theme-text">+</span>
-      </button>
-      <button 
-        @click="zoomOut"
-        class="px-3 py-1 theme-surface hover:theme-primary rounded transition shadow-background-bottom"
-        title="Zoom Out"
-      >
-        <span class="text-xl theme-text">−</span>
-      </button>
-      <button 
-        @click="resetView"
-        class="px-3 py-1 theme-surface hover:theme-primary rounded transition text-sm shadow-background-bottom theme-text"
-      >
-        Reset View
-      </button>
-      <span class="text-sm theme-text ml-2">
-        Zoom: {{ (zoom * 100).toFixed(0) }}%
-      </span>
-      <span class="text-sm theme-text opacity-60 ml-4">
-        💡 Scroll to zoom, drag to pan
-      </span>
+    <button v-show="!showControls" @click="showControls = true" class="absolute bottom-4 right-4 theme-surface rounded-full shadow-lg w-12 h-12 flex items-center justify-center hover:shadow-xl transition-shadow z-10 text-xl">
+      🎛️
+    </button>
+
+    <!-- Search Box (Top-center, Google Maps style) -->
+    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+      <div class="theme-surface rounded-full shadow-lg px-5 py-3 flex items-center gap-3 min-w-[400px]">
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <input 
+          type="text" 
+          placeholder="Search for items, shelves, or aisles..." 
+          class="flex-1 bg-transparent border-none outline-none theme-text placeholder-gray-400 text-sm"
+        />
+      </div>
     </div>
 
-    <!-- SVG Map Container -->
-    <div 
-      ref="svgContainer"
-      class="rounded overflow-hidden theme-background relative shadow-background-bottom"
-      style="height: 500px; cursor: grab;"
-      :style="{ cursor: isDragging ? 'grabbing' : 'grab' }"
-      @wheel="handleWheel"
-      @mousedown="startDrag"
-      @mousemove="onDrag"
-      @mouseup="stopDrag"
-      @mouseleave="stopDrag"
-    >
-      <div 
-        class="absolute top-0 left-0 origin-top-left transition-transform"
-        :style="{ transform: transform }"
-        v-html="svgContent"
-      ></div>
-    </div>
-
-    <!-- Layer Controls -->
-    <div v-if="shopMap.layers" class="mt-4">
-      <h3 class="font-semibold mb-2 theme-text">Layers:</h3>
-      <div class="flex gap-2 flex-wrap">
-        <span 
-          v-for="layer in Object.keys(shopMap.layers)" 
-          :key="layer"
-          class="px-3 py-1 theme-background rounded-full text-sm theme-text shadow-background-bottom"
-        >
-          {{ layer }}
-        </span>
+    <!-- Help Hint (Bottom-center) -->
+    <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-4 py-2 z-10">
+      <div class="text-xs theme-text flex items-center gap-3">
+        <span>💡 Scroll to zoom</span>
+        <span class="text-gray-400">•</span>
+        <span>Drag to pan</span>
+        <span class="text-gray-400">•</span>
+        <span>Click to select</span>
       </div>
     </div>
   </div>
 </template>
+
