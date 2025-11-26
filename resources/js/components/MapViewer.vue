@@ -12,7 +12,19 @@ import {
   updateShapeColors,
   updateShapeSelection
 } from '../utils/konvaRenderer';
+import { 
+  initKonvaStage, 
+  setupZoom, 
+  setupStageClick, 
+  fitStageToMap, 
+  handleResize as handleStageResize,
+  zoomIn as stageZoomIn,
+  zoomOut as stageZoomOut,
+  resetView as stageResetView
+} from '../utils/stageHelpers';
 import { watchDarkMode } from '../utils/darkModeDetector';
+import { usePathfinding } from '../composables/usePathfinding';
+import PathModeControls from './PathModeControls.vue';
 
 const props = defineProps({
   shopMap: {
@@ -43,6 +55,17 @@ const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 5;
 const ZOOM_STEP = 1.2;
 
+// Use pathfinding composable
+const { 
+  pathMode,
+  pathPoints,
+  initPathfinder, 
+  togglePathMode, 
+  handlePathClick,
+  clearPathVisualization,
+  resetPathMode
+} = usePathfinding();
+
 onMounted(() => {
   initKonva();
   
@@ -65,59 +88,25 @@ onUnmounted(() => {
 });
 
 function handleResize() {
-  if (!containerRef.value || !stage.value) return;
-  
-  const width = containerRef.value.offsetWidth;
-  const height = containerRef.value.offsetHeight;
-  
-  stage.value.width(width);
-  stage.value.height(height);
-  
-  if (props.shopMap?.bounds) {
-    fitStageToMap(props.shopMap.bounds, 20);
-  }
+  handleStageResize(stage.value, containerRef.value, props.shopMap?.bounds, 20);
 }
 
 function initKonva() {
   if (!containerRef.value) return;
 
-  const width = containerRef.value.offsetWidth;
-  const height = containerRef.value.offsetHeight;
+  // Initialize stage and layer
+  const result = initKonvaStage(containerRef.value, { draggable: true });
+  stage.value = result.stage;
+  mainLayer.value = result.mainLayer;
 
-  stage.value = new Konva.Stage({
-    container: containerRef.value,
-    width: width,
-    height: height,
-    draggable: true
-  });
+  // Setup zoom
+  setupZoom(stage.value, zoom, { ZOOM_MIN, ZOOM_MAX });
 
-  mainLayer.value = new Konva.Layer();
-  stage.value.add(mainLayer.value);
-
-  // Zoom with mouse wheel
-  stage.value.on('wheel', (e) => {
-    e.evt.preventDefault();
-
-    const oldScale = stage.value.scaleX();
-    const pointer = stage.value.getPointerPosition();
-
-    const mousePointTo = {
-      x: (pointer.x - stage.value.x()) / oldScale,
-      y: (pointer.y - stage.value.y()) / oldScale,
-    };
-
-    const delta = e.evt.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(ZOOM_MIN, Math.min(oldScale * delta, ZOOM_MAX));
-
-    stage.value.scale({ x: newScale, y: newScale });
-    zoom.value = newScale;
-
-    const newPos = {
-      x: pointer.x - mousePointTo.x * newScale,
-      y: pointer.y - mousePointTo.y * newScale,
-    };
-
-    stage.value.position(newPos);
+  // Setup click handler for pathfinding
+  setupStageClick(stage.value, (worldPos) => {
+    if (pathMode.value) {
+      handlePathClick(worldPos, mainLayer.value);
+    }
   });
 
   if (props.shopMap) {
@@ -154,7 +143,11 @@ function renderMap(map) {
   }
 
   mainLayer.value.batchDraw();
-  fitStageToMap(bounds, padding);
+  const scale = fitStageToMap(stage.value, containerRef.value, bounds, padding);
+  zoom.value = scale;
+  
+  // Initialize pathfinder
+  initPathfinder(map, 20);
 }
 
 function makeInteractive(shape) {
@@ -204,42 +197,23 @@ function selectItem(shape) {
   emit('item-selected', shape.attrs.data);
 }
 
-function fitStageToMap(bounds, padding) {
-  const containerWidth = containerRef.value.offsetWidth;
-  const containerHeight = containerRef.value.offsetHeight;
-
-  const mapWidth = bounds.width + padding * 2;
-  const mapHeight = bounds.height + padding * 2;
-
-  const scaleX = containerWidth / mapWidth;
-  const scaleY = containerHeight / mapHeight;
-  const scale = Math.min(scaleX, scaleY) * 0.9;
-
-  stage.value.scale({ x: scale, y: scale });
-  zoom.value = scale;
-
-  const x = (containerWidth - mapWidth * scale) / 2 - (bounds.minX - padding) * scale;
-  const y = (containerHeight - mapHeight * scale) / 2 - (bounds.minY - padding) * scale;
-
-  stage.value.position({ x, y });
-}
-
 function zoomIn() {
-  const newScale = Math.min(zoom.value * ZOOM_STEP, ZOOM_MAX);
-  stage.value.scale({ x: newScale, y: newScale });
-  zoom.value = newScale;
+  stageZoomIn(stage.value, zoom, ZOOM_STEP, ZOOM_MAX);
 }
 
 function zoomOut() {
-  const newScale = Math.max(zoom.value / ZOOM_STEP, ZOOM_MIN);
-  stage.value.scale({ x: newScale, y: newScale });
-  zoom.value = newScale;
+  stageZoomOut(stage.value, zoom, ZOOM_STEP, ZOOM_MIN);
 }
 
 function resetView() {
   if (props.shopMap?.bounds) {
-    fitStageToMap(props.shopMap.bounds, 20);
+    const scale = stageResetView(stage.value, containerRef.value, props.shopMap.bounds, 20);
+    zoom.value = scale;
   }
+}
+
+function handleClearPath() {
+  resetPathMode(mainLayer.value);
 }
 </script>
 
@@ -287,6 +261,14 @@ function resetView() {
     <button v-show="!showControls" @click="showControls = true" class="absolute bottom-4 right-4 theme-surface rounded-full shadow-lg w-12 h-12 flex items-center justify-center hover:shadow-xl transition-shadow z-10 text-xl">
       🎛️
     </button>
+
+    <!-- Pathfinding Controls -->
+    <PathModeControls 
+      :path-mode="pathMode"
+      :waypoint-count="pathPoints.length"
+      @toggle-path-mode="togglePathMode"
+      @clear-path="handleClearPath"
+    />
 
     <!-- Search Box (Top-center, Google Maps style) -->
     <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">

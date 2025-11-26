@@ -314,3 +314,97 @@ export function updateShapeSelection(shape, colors, strokeWidths, isSelected = t
     }
   }
 }
+
+/**
+ * Render a pathfinding route on the map
+ * @param {Array} pathPoints - Array of {x, y} points in world coordinates
+ * @param {Konva.Layer} layer - Konva layer to add the path to
+ * @param {Object} options - Rendering options
+ */
+export function renderPath(pathPoints, layer, options = {}) {
+  if (!pathPoints || pathPoints.length === 0) return;
+
+  const {
+    color = '#10B981', // Emerald green
+    strokeWidth = 5,
+    dash = [15, 10],
+    opacity = 0.8,
+    animated = false
+  } = options;
+
+  // Create the path line
+  const points = pathPoints.flatMap(p => [p.x, p.y]);
+  
+  const pathLine = new Konva.Line({
+    points: points,
+    stroke: color,
+    strokeWidth: strokeWidth,
+    dash: dash,
+    lineCap: 'round',
+    lineJoin: 'round',
+    opacity: opacity,
+    name: 'route-path',
+    id: 'route-path'
+  });
+
+  // Add start marker (circle)
+  const startMarker = new Konva.Circle({
+    x: pathPoints[0].x,
+    y: pathPoints[0].y,
+    radius: 8,
+    fill: '#3b82f6', // Blue
+    stroke: '#ffffff',
+    strokeWidth: 2,
+    name: 'route-start',
+    id: 'route-start'
+  });
+
+  // Add end marker (circle)
+  const endMarker = new Konva.Circle({
+    x: pathPoints[pathPoints.length - 1].x,
+    y: pathPoints[pathPoints.length - 1].y,
+    radius: 8,
+    fill: '#ef4444', // Red
+    stroke: '#ffffff',
+    strokeWidth: 2,
+    name: 'route-end',
+    id: 'route-end'
+  });
+
+  layer.add(pathLine);
+  layer.add(startMarker);
+  layer.add(endMarker);
+
+  // Animate the dash if requested
+if (animated) {
+    let dashOffset = 0;
+    const anim = new Konva.Animation(() => {
+        dashOffset += 3;
+        pathLine.dashOffset(dashOffset);
+    }, layer);
+    anim.start();
+    
+    // Store animation reference for cleanup
+    pathLine.animation = anim;
+  }
+
+  return { pathLine, startMarker, endMarker };
+}
+
+/**
+ * Clear all route visualizations from the layer
+ * @param {Konva.Layer} layer - Konva layer to clear routes from
+ */
+export function clearPaths(layer) {
+  const routeElements = layer.find(node => {
+    return node.name() && node.name().startsWith('route-');
+  });
+
+  routeElements.forEach(element => {
+    // Stop any animations
+    if (element.animation) {
+      element.animation.stop();
+    }
+    element.destroy();
+  });
+}
