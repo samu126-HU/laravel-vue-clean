@@ -42,6 +42,8 @@ class ShopController extends Controller
             'description' => 'nullable|string',
             'address' => 'nullable|string',
             'map_data' => 'required|array',
+            'aisle_names' => 'nullable|array',
+            'aisle_categories' => 'nullable|array',
         ]);
 
         $shop = Shop::create($validated);
@@ -66,6 +68,29 @@ class ShopController extends Controller
                 'address' => $shop->address,
             ],
             'map' => $shop->map_data
+        ]);
+    }
+
+    /**
+     * Update a shop
+     */
+    public function update(Request $request, Shop $shop)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'address' => 'nullable|string',
+            'map_data' => 'required|array',
+            'aisle_names' => 'nullable|array',
+            'aisle_categories' => 'nullable|array',
+        ]);
+
+        $shop->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'shop' => $shop,
+            'message' => 'Shop updated successfully'
         ]);
     }
 }

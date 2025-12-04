@@ -6,7 +6,10 @@ import Konva from 'konva';
 export function usePathfinding() {
   const pathfinder = ref(null);
   const pathMode = ref(false);
-  const pathPoints = ref([]);
+  const selectedAisles = ref([]);
+  const aisleNavigationPoints = ref({});
+  const startPoint = ref(null);
+  const endPoint = ref(null);
 
   /**
    * Initialize pathfinder with shop map
@@ -14,7 +17,111 @@ export function usePathfinding() {
   function initPathfinder(shopMap, gridSize = 20) {
     if (!shopMap) return;
     pathfinder.value = new PathFinder(shopMap, gridSize);
-    console.log('PathFinder initialized');
+    
+    // Extract start and end points from DXF
+    startPoint.value = shopMap.entities.startPoint;
+    endPoint.value = shopMap.entities.endPoint;
+    
+    calculateAisleNavigationPoints(shopMap);
+    console.log('PathFinder initialized with aisle navigation points');
+    
+    if (startPoint.value) {
+      console.log('Using START point from DXF:', startPoint.value);
+    }
+    if (endPoint.value) {
+      console.log('Using END point from DXF:', endPoint.value);
+    }
+  }
+
+  /**
+   * Calculate navigation points for each aisle (prioritize accessible sides)
+   */
+  function calculateAisleNavigationPoints(shopMap) {
+    if (!shopMap?.entities?.shelves) return;
+    
+    const navPoints = {};
+    
+    shopMap.entities.shelves.forEach(shelf => {
+      const bounds = shelf.bounds;
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+      const centerY = (bounds.minY + bounds.maxY) / 2;
+      
+      // Determine shelf orientation based on aspect ratio
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      const isHorizontal = width > height;
+      
+      // Test points: prioritize SIDES first (where customers access), then center
+      const testPoints = [];
+      
+      // Try multiple offsets to find walkable point
+      const offsets = [30, 50, 70, 100];
+      
+      // Add side points first (higher priority)
+      offsets.forEach((offset, index) => {
+        if (isHorizontal) {
+          // Horizontal shelf - check bottom and top sides (bottom first - more common)
+          testPoints.push(
+            { x: centerX, y: bounds.maxY + offset, priority: index * 2, label: `bottom-${offset}` },
+            { x: centerX, y: bounds.minY - offset, priority: index * 2 + 1, label: `top-${offset}` }
+          );
+        } else {
+          // Vertical shelf - check right and left sides (right first)
+          testPoints.push(
+            { x: bounds.maxX + offset, y: centerY, priority: index * 2, label: `right-${offset}` },
+            { x: bounds.minX - offset, y: centerY, priority: index * 2 + 1, label: `left-${offset}` }
+          );
+        }
+      });
+      
+      // Add center as lower priority (only if sides are blocked)
+      testPoints.push({ x: centerX, y: centerY, priority: 100, label: 'center' });
+      
+      // Find first walkable point
+      let selectedPoint = null;
+      for (const point of testPoints) {
+        if (pathfinder.value && pathfinder.value.isWalkable(point)) {
+          selectedPoint = point;
+          console.log(`Aisle ${shelf.id}: Using ${point.label} navigation point at (${point.x.toFixed(0)}, ${point.y.toFixed(0)})`);
+          break;
+        }
+      }
+      
+      // If no walkable point found, try diagonal corners as last resort
+      if (!selectedPoint) {
+        const cornerOffset = 40;
+        const cornerPoints = [
+          { x: centerX + cornerOffset, y: centerY + cornerOffset, label: 'bottom-right' },
+          { x: centerX - cornerOffset, y: centerY + cornerOffset, label: 'bottom-left' },
+          { x: centerX + cornerOffset, y: centerY - cornerOffset, label: 'top-right' },
+          { x: centerX - cornerOffset, y: centerY - cornerOffset, label: 'top-left' }
+        ];
+        
+        for (const point of cornerPoints) {
+          if (pathfinder.value && pathfinder.value.isWalkable(point)) {
+            selectedPoint = point;
+            console.log(`Aisle ${shelf.id}: Using corner ${point.label} navigation point`);
+            break;
+          }
+        }
+      }
+      
+      // Final fallback - use center with error message
+      if (!selectedPoint) {
+        console.error(`Aisle ${shelf.id}: NO walkable navigation point found! Bounds:`, bounds);
+        selectedPoint = { x: centerX, y: centerY, label: 'center-fallback' };
+      }
+      
+      navPoints[shelf.id] = {
+        x: selectedPoint.x,
+        y: selectedPoint.y,
+        shelfId: shelf.id,
+        position: selectedPoint.label
+      };
+    });
+    
+    aisleNavigationPoints.value = navPoints;
+    console.log(`Calculated navigation points for ${Object.keys(navPoints).length} aisles`);
   }
 
   /**
@@ -23,66 +130,138 @@ export function usePathfinding() {
   function togglePathMode() {
     pathMode.value = !pathMode.value;
     if (pathMode.value) {
-      console.log('Path mode enabled - click two points to find a path');
+      console.log('Path mode enabled - select aisles to navigate');
     } else {
       console.log('Path mode disabled');
     }
   }
 
   /**
-   * Handle click in path mode
+   * Handle aisle selection in path mode
    */
-  function handlePathClick(worldPos, layer) {
-    console.log('Clicked at:', worldPos);
-    
+  function handleAisleSelection(shelfId, layer) {
     if (!pathfinder.value) {
       console.error('Pathfinder not initialized');
       return;
     }
-    
-    // Check if position is walkable
-    if (!pathfinder.value.isWalkable(worldPos)) {
-      console.warn('Clicked position is not walkable');
+
+    const navPoint = aisleNavigationPoints.value[shelfId];
+    if (!navPoint) {
+      console.error('No navigation point found for aisle:', shelfId);
       return;
     }
-    
-    pathPoints.value.push(worldPos);
-    
-    // Draw a marker at the clicked point
-    drawPathMarker(worldPos, pathPoints.value.length, layer);
-    
-    // If we have at least 2 points, draw paths between all consecutive points
-    if (pathPoints.value.length >= 2) {
-      // Clear previous paths but keep markers
-      clearPathsOnly(layer);
-      
-      // Draw path between all consecutive waypoints
-      drawMultiSegmentPath(layer);
+
+    // Add aisle to selection
+    selectedAisles.value.push(shelfId);
+    console.log(`Selected aisle ${shelfId}, total: ${selectedAisles.value.length}`);
+
+    // Clear previous visualization
+    clearPathsOnly(layer);
+    layer.find('.route-marker').forEach(m => m.destroy());
+
+    // Draw path with START and END points, plus TSP optimization
+    if (selectedAisles.value.length >= 1) {
+      drawOptimizedPath(layer);
     }
-    
+
     layer.batchDraw();
   }
 
   /**
-   * Draw paths between all consecutive waypoints
+   * Calculate distance between two points
    */
-  function drawMultiSegmentPath(layer) {
-    let allSegmentsFound = true;
+  function calculateDistance(point1, point2) {
+    const dx = point2.x - point1.x;
+    const dy = point2.y - point1.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Optimize route using nearest neighbor TSP heuristic
+   */
+  function optimizeRouteOrder(aisleIds, startPt) {
+    if (aisleIds.length <= 1) return aisleIds;
+
+    const unvisited = [...aisleIds];
+    const optimized = [];
+    let current = startPt || (startPoint.value || aisleNavigationPoints.value[aisleIds[0]]);
+
+    while (unvisited.length > 0) {
+      let nearestIdx = 0;
+      let nearestDist = Infinity;
+
+      // Find nearest unvisited aisle
+      for (let i = 0; i < unvisited.length; i++) {
+        const aislePoint = aisleNavigationPoints.value[unvisited[i]];
+        const dist = calculateDistance(current, aislePoint);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestIdx = i;
+        }
+      }
+
+      const nearest = unvisited[nearestIdx];
+      optimized.push(nearest);
+      current = aisleNavigationPoints.value[nearest];
+      unvisited.splice(nearestIdx, 1);
+    }
+
+    return optimized;
+  }
+
+  /**
+   * Draw optimized path including START and END points
+   */
+  function drawOptimizedPath(layer) {
+    // Build route: START -> optimized aisles -> END
+    const route = [];
     
-    // Draw path for each segment
-    for (let i = 0; i < pathPoints.value.length - 1; i++) {
-      const start = pathPoints.value[i];
-      const end = pathPoints.value[i + 1];
-      
-      console.log(`Finding path segment ${i + 1}: from point ${i + 1} to point ${i + 2}`);
-      
+    // Add START point if available
+    if (startPoint.value) {
+      route.push({ point: startPoint.value, label: 'START', type: 'start' });
+    }
+
+    // Optimize aisle order using TSP
+    const optimizedAisles = optimizeRouteOrder(selectedAisles.value, startPoint.value);
+    console.log('Original order:', selectedAisles.value);
+    console.log('Optimized order:', optimizedAisles);
+
+    // Update selected aisles to optimized order
+    selectedAisles.value = optimizedAisles;
+
+    // Add aisles to route
+    optimizedAisles.forEach(aisleId => {
+      route.push({ 
+        point: aisleNavigationPoints.value[aisleId], 
+        label: aisleId, 
+        type: 'aisle' 
+      });
+    });
+
+    // Add END point if available
+    if (endPoint.value) {
+      route.push({ point: endPoint.value, label: 'END', type: 'end' });
+    }
+
+    // Draw markers for all points
+    route.forEach((item, index) => {
+      drawPathMarker(item.point, index + 1, layer, item.type);
+    });
+
+    // Draw paths between consecutive points
+    let allSegmentsFound = true;
+    for (let i = 0; i < route.length - 1; i++) {
+      const start = route[i].point;
+      const end = route[i + 1].point;
+
+      console.log(`Finding path segment ${i + 1}: ${route[i].label} -> ${route[i + 1].label}`);
+
       const path = pathfinder.value.findPath(start, end);
-      
+
       if (path) {
-        // Use different colors for different segments
         const segmentColors = ['#10B981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
         const color = segmentColors[i % segmentColors.length];
-        
+
         renderPath(path, layer, {
           color: color,
           strokeWidth: 20,
@@ -90,15 +269,15 @@ export function usePathfinding() {
           animated: false
         });
       } else {
-        console.error(`No path found for segment ${i + 1}`);
+        console.error(`No path found between ${route[i].label} and ${route[i + 1].label}`);
         allSegmentsFound = false;
       }
     }
-    
+
     if (!allSegmentsFound) {
       alert('Could not find paths between all waypoints!');
     } else {
-      console.log(`Successfully drawn path through ${pathPoints.value.length} waypoints`);
+      console.log(`Successfully drawn optimized path through ${route.length} points`);
     }
   }
 
@@ -113,69 +292,52 @@ export function usePathfinding() {
   }
 
   /**
-   * Draw a marker at clicked position
+   * Draw a marker at navigation point
    */
-  function drawPathMarker(pos, number, layer) {
-    // Different colors for start, end, and waypoints
-    let fillColor = '#3b82f6'; // Blue for start
-    if (number > 1 && pathPoints.value.length > number) {
+  function drawPathMarker(pos, number, layer, type = 'aisle') {
+    // Different colors based on type
+    let fillColor = '#3b82f6'; // Blue default
+    let strokeColor = '#ffffff';
+    let radius = 15;
+    
+    if (type === 'start') {
+      fillColor = '#10B981'; // Green for START
+      radius = 18;
+    } else if (type === 'end') {
+      fillColor = '#ef4444'; // Red for END
+      radius = 18;
+    } else if (number === 1 && !startPoint.value) {
+      fillColor = '#3b82f6'; // Blue for first aisle
+    } else {
       fillColor = '#f59e0b'; // Orange for waypoints
-    } else if (number > 1) {
-      fillColor = '#ef4444'; // Red for current end
     }
     
     const marker = new Konva.Circle({
       x: pos.x,
       y: pos.y,
-      radius: 10,
+      radius: radius,
       fill: fillColor,
-      stroke: '#ffffff',
-      strokeWidth: 2,
+      stroke: strokeColor,
+      strokeWidth: 3,
       name: 'route-marker'
     });
     
     const text = new Konva.Text({
       x: pos.x,
       y: pos.y,
-      text: number.toString(),
-      fontSize: 14,
+      text: type === 'start' ? 'S' : (type === 'end' ? 'E' : number.toString()),
+      fontSize: type === 'start' || type === 'end' ? 18 : 16,
       fill: '#ffffff',
       fontStyle: 'bold',
       align: 'center',
       verticalAlign: 'middle',
-      offsetX: 4,
-      offsetY: 7,
+      offsetX: type === 'start' || type === 'end' ? 6 : 5,
+      offsetY: type === 'start' || type === 'end' ? 9 : 8,
       name: 'route-marker'
     });
     
     layer.add(marker);
     layer.add(text);
-  }
-
-  /**
-   * Find path between two points and draw it (legacy - now using drawMultiSegmentPath)
-   */
-  function findAndDrawPath(layer) {
-    const start = pathPoints.value[0];
-    const end = pathPoints.value[1];
-    
-    console.log('Finding path from', start, 'to', end);
-    
-    const path = pathfinder.value.findPath(start, end);
-    
-    if (path) {
-      console.log('Path found! Drawing...');
-      renderPath(path, layer, {
-        color: '#10B981',
-        strokeWidth: 15,
-        dash: [25, 15],
-        animated: false,
-      });
-      layer.batchDraw();
-    } else {
-      console.error('No path found!');
-      alert('No path found between these points!');
-    }
   }
 
   /**
@@ -198,24 +360,27 @@ export function usePathfinding() {
    */
   function resetPathMode(layer) {
     clearPathVisualization(layer);
-    pathPoints.value = [];
+    selectedAisles.value = [];
   }
 
   // Watch for pathMode changes
-  watch(pathMode, (newVal, oldVal, onCleanup) => {
+  watch(pathMode, (newVal) => {
     if (!newVal) {
-      // Clear path when exiting path mode (layer passed separately)
-      pathPoints.value = [];
+      // Clear selection when exiting path mode
+      selectedAisles.value = [];
     }
   });
 
   return {
     pathfinder,
     pathMode,
-    pathPoints,
+    selectedAisles,
+    aisleNavigationPoints,
+    startPoint,
+    endPoint,
     initPathfinder,
     togglePathMode,
-    handlePathClick,
+    handleAisleSelection,
     clearPathVisualization,
     resetPathMode
   };

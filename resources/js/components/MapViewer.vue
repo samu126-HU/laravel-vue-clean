@@ -9,6 +9,7 @@ import {
   renderCircles,
   renderArcs,
   renderText,
+  renderSplitters,
   updateShapeColors,
   updateShapeSelection
 } from '../utils/konvaRenderer';
@@ -25,15 +26,20 @@ import {
 import { watchDarkMode } from '../utils/darkModeDetector';
 import { usePathfinding } from '../composables/usePathfinding';
 import PathModeControls from './PathModeControls.vue';
+import ContextMenu from './ContextMenu.vue';
 
 const props = defineProps({
   shopMap: {
     type: Object,
     required: true
+  },
+  shopName: {
+    type: String,
+    default: ''
   }
 });
 
-const emit = defineEmits(['item-selected', 'item-hovered']);
+const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated']);
 
 const strokeWidths = {
   lines: 10,
@@ -49,6 +55,17 @@ const zoom = ref(1);
 const selectedItem = ref(null);
 const showControls = ref(true);
 const showInfo = ref(true);
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  item: null
+});
+const aisleNames = ref({});
+const aisleCategories = ref({});
+const searchQuery = ref('');
+const searchResults = ref([]);
+const categories = ref([]);
 let darkModeCleanup = null;
 
 const ZOOM_MIN = 0.1;
@@ -58,16 +75,31 @@ const ZOOM_STEP = 1.2;
 // Use pathfinding composable
 const { 
   pathMode,
-  pathPoints,
+  selectedAisles,
+  startPoint,
+  endPoint,
   initPathfinder, 
   togglePathMode, 
-  handlePathClick,
+  handleAisleSelection,
   clearPathVisualization,
   resetPathMode
 } = usePathfinding();
 
 onMounted(() => {
   initKonva();
+  
+  // Load aisle names from map data
+  if (props.shopMap?.aisleNames) {
+    aisleNames.value = { ...props.shopMap.aisleNames };
+  }
+  
+  // Load aisle categories from map data
+  if (props.shopMap?.aisleCategories) {
+    aisleCategories.value = { ...props.shopMap.aisleCategories };
+  }
+  
+  // Load categories for search
+  loadCategories();
   
   // Watch for dark mode changes and re-render
   darkModeCleanup = watchDarkMode(() => {
@@ -102,13 +134,6 @@ function initKonva() {
   // Setup zoom
   setupZoom(stage.value, zoom, { ZOOM_MIN, ZOOM_MAX });
 
-  // Setup click handler for pathfinding
-  setupStageClick(stage.value, (worldPos) => {
-    if (pathMode.value) {
-      handlePathClick(worldPos, mainLayer.value);
-    }
-  });
-
   if (props.shopMap) {
     renderMap(props.shopMap);
   }
@@ -140,6 +165,11 @@ function renderMap(map) {
     renderArcs(entities.arcs, mainLayer.value, colors, strokeWidths);
     renderShelves(entities.shelves, mainLayer.value, colors, strokeWidths, makeInteractive);
     renderText(entities.text, mainLayer.value, colors);
+    
+    // Render splitter lines for visualization (optional)
+    if (entities.splitters && entities.splitters.length > 0) {
+      renderSplitters(entities.splitters, mainLayer.value, 2);
+    }
   }
 
   mainLayer.value.batchDraw();
@@ -169,7 +199,39 @@ function makeInteractive(shape) {
   });
 
   shape.on('click', () => {
-    selectItem(shape);
+    // In path mode, select aisles for navigation
+    if (pathMode.value) {
+      const shelfId = shape.attrs.data?.shelfId;
+      if (shelfId !== undefined && shelfId !== null) {
+        handleAisleSelection(shelfId, mainLayer.value);
+        // Highlight selected aisle
+        updateShapeColors(shape, getColors(), strokeWidths, true);
+        mainLayer.value.batchDraw();
+      }
+    } else {
+      selectItem(shape);
+    }
+  });
+
+  shape.on('contextmenu', (e) => {
+    e.evt.preventDefault();
+    
+    // Don't show context menu in path mode
+    if (pathMode.value) return;
+    
+    const shelfId = shape.attrs.data?.shelfId;
+    console.log('Context menu opened for shelf:', shelfId, shape.attrs.data);
+    contextMenu.value = {
+      visible: true,
+      x: e.evt.clientX,
+      y: e.evt.clientY,
+      item: {
+        shape: shape,
+        data: shape.attrs.data,
+        name: aisleNames.value[shelfId] || '',
+        categories: aisleCategories.value[shelfId] || []
+      }
+    };
   });
 }
 
@@ -215,6 +277,140 @@ function resetView() {
 function handleClearPath() {
   resetPathMode(mainLayer.value);
 }
+
+async function loadCategories() {
+  try {
+    const response = await axios.get('/api/categories');
+    categories.value = response.data.categories;
+  } catch (error) {
+    console.error('Error loading categories:', error);
+  }
+}
+
+function handleSearch() {
+  const query = searchQuery.value.toLowerCase().trim();
+  
+  if (!query) {
+    searchResults.value = [];
+    return;
+  }
+  
+  const results = [];
+  
+  // Search through all shelves
+  if (props.shopMap?.entities?.shelves) {
+    props.shopMap.entities.shelves.forEach(shelf => {
+      const shelfId = shelf.id;
+      const aisleName = aisleNames.value[shelfId] || '';
+      const categoryIds = aisleCategories.value[shelfId] || [];
+      
+      // Check if name matches
+      if (aisleName.toLowerCase().includes(query)) {
+        results.push({
+          shelfId,
+          name: aisleName || `Aisle ${shelfId}`,
+          matchType: 'name'
+        });
+        return;
+      }
+      
+      // Check if any category matches
+      for (const catId of categoryIds) {
+        const category = categories.value.find(c => c.id === catId);
+        if (category && category.name.toLowerCase().includes(query)) {
+          results.push({
+            shelfId,
+            name: aisleName || `Aisle ${shelfId}`,
+            matchType: 'category',
+            categoryName: category.name
+          });
+          break;
+        }
+      }
+    });
+  }
+  
+  searchResults.value = results;
+  console.log('Search results:', results);
+}
+
+function selectSearchResult(result) {
+  // Find the shelf shape on the map
+  const shape = mainLayer.value.findOne(`#shelf-${result.shelfId}`);
+  
+  if (shape) {
+    // Trigger click event to select/highlight the aisle
+    selectItem(shape);
+    
+    // Clear search
+    searchQuery.value = '';
+    searchResults.value = [];
+  } else {
+    console.error('Shape not found for shelf:', result.shelfId);
+  }
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false;
+}
+
+function handleRenameAisle(newName) {
+  if (!contextMenu.value.item) return;
+  
+  const itemId = contextMenu.value.item.data?.shelfId;
+  console.log('Renaming aisle:', { itemId, newName, data: contextMenu.value.item.data });
+  
+  if (itemId) {
+    aisleNames.value[itemId] = newName;
+    
+    // Emit event to save to database
+    emit('aisle-renamed', {
+      id: itemId,
+      name: newName,
+      allNames: aisleNames.value
+    });
+  } else {
+    console.error('No shelf ID found in item data');
+  }
+}
+
+function handleDeleteAisleName() {
+  if (!contextMenu.value.item) return;
+  
+  const itemId = contextMenu.value.item.data?.shelfId;
+  if (itemId) {
+    delete aisleNames.value[itemId];
+    
+    // Emit event to save to database
+    emit('aisle-renamed', {
+      id: itemId,
+      name: '',
+      allNames: aisleNames.value
+    });
+  }
+}
+
+function handleSetCategory(categoryIds) {
+  if (!contextMenu.value.item) return;
+  
+  const itemId = contextMenu.value.item.data?.shelfId;
+  console.log('Setting categories:', { itemId, categoryIds });
+  
+  if (itemId) {
+    if (categoryIds.length > 0) {
+      aisleCategories.value[itemId] = categoryIds;
+    } else {
+      delete aisleCategories.value[itemId];
+    }
+    
+    // Emit event to save to database
+    emit('aisle-categories-updated', {
+      id: itemId,
+      categories: categoryIds,
+      allCategories: aisleCategories.value
+    });
+  }
+}
 </script>
 
 <template>
@@ -222,78 +418,141 @@ function handleClearPath() {
     <!-- Konva Canvas Container -->
     <div ref="containerRef" class="w-full h-full"></div>
 
-    <!-- Info Panel (Top-left) -->
+    <!-- Info Panel (Top-left) - Mobile Optimized -->
     <transition name="slide-right">
-      <div v-show="showInfo" class="absolute top-4 left-4 theme-surface rounded-lg shadow-lg p-4 max-w-sm z-10">
-        <button @click="showInfo = false" class="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-sm theme-text">✕</button>
+      <div v-show="showInfo" class="absolute top-2 left-2 md:top-4 md:left-4 theme-surface rounded-lg shadow-lg p-3 md:p-4 max-w-[calc(100vw-1rem)] md:max-w-sm z-10">
+        <button @click="showInfo = false" class="absolute top-1 right-1 md:top-2 md:right-2 w-7 h-7 md:w-6 md:h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 flex items-center justify-center text-sm theme-text transition-transform">
+          ✕
+        </button>
         
-        <h2 class="text-lg font-bold theme-text">Floor Plan</h2>
-        <p><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
+        <h2 v-if="shopName" class="text-lg md:text-xl font-bold theme-text mb-2 flex items-center gap-2 pr-6">
+          <span>📍</span>
+          <span class="truncate">{{ shopName }}</span>
+        </h2>
+        <h3 class="text-xs md:text-sm font-semibold theme-text opacity-70 mb-1">Floor Plan</h3>
+        <p class="text-xs md:text-sm theme-text"><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
       </div>
     </transition>
 
-    <button v-show="!showInfo" @click="showInfo = true" class="absolute top-4 left-4 theme-surface rounded-lg shadow-lg px-4 py-2 hover:shadow-xl transition-shadow z-10 theme-text font-medium">
+    <button v-show="!showInfo" @click="showInfo = true" class="absolute top-2 left-2 md:top-4 md:left-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl active:scale-95 transition-all z-10 theme-text text-sm md:text-base font-medium">
       ℹ️ Info
     </button>
 
-    <!-- Zoom Controls (Bottom-right, Google Maps style) -->
+    <!-- Zoom Controls (Bottom-right, Google Maps style) - Mobile Optimized -->
     <transition name="slide-left">
-      <div v-show="showControls" class="absolute bottom-24 right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
-        <button @click="zoomIn" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-colors">
+      <div v-show="showControls" class="absolute bottom-20 md:bottom-24 right-2 md:right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
+        <button @click="zoomIn" class="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 border-b border-gray-200 dark:border-gray-700 theme-text text-2xl md:text-xl font-bold transition-colors touch-manipulation">
           +
         </button>
-        <button @click="zoomOut" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-colors">
+        <button @click="zoomOut" class="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 border-b border-gray-200 dark:border-gray-700 theme-text text-2xl md:text-xl font-bold transition-colors touch-manipulation">
           −
         </button>
-        <button @click="resetView" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-lg transition-colors" title="Reset view">
+        <button @click="resetView" class="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 theme-text text-xl md:text-lg transition-colors touch-manipulation" title="Reset view">
           ⟲
         </button>
       </div>
     </transition>
 
-    <!-- Zoom Level Indicator -->
-    <div v-show="showControls" class="absolute bottom-4 right-4 theme-surface rounded-lg shadow-lg px-3 py-2 z-10">
+    <!-- Zoom Level Indicator - Mobile Optimized -->
+    <div v-show="showControls" class="absolute bottom-2 md:bottom-4 right-2 md:right-4 theme-surface rounded-lg shadow-lg px-3 py-2 z-10">
       <div class="text-xs font-medium theme-text">
         {{ (zoom * 100).toFixed(0) }}%
       </div>
     </div>
 
-    <button v-show="!showControls" @click="showControls = true" class="absolute bottom-4 right-4 theme-surface rounded-full shadow-lg w-12 h-12 flex items-center justify-center hover:shadow-xl transition-shadow z-10 text-xl">
+    <button v-show="!showControls" @click="showControls = true" class="absolute bottom-2 md:bottom-4 right-2 md:right-4 theme-surface rounded-full shadow-lg w-14 h-14 md:w-12 md:h-12 flex items-center justify-center hover:shadow-xl active:scale-95 transition-all z-10 text-2xl md:text-xl touch-manipulation">
       🎛️
     </button>
 
     <!-- Pathfinding Controls -->
     <PathModeControls 
       :path-mode="pathMode"
-      :waypoint-count="pathPoints.length"
+      :selected-aisles="selectedAisles"
+      :aisle-names="aisleNames"
+      :start-point="startPoint"
+      :end-point="endPoint"
       @toggle-path-mode="togglePathMode"
       @clear-path="handleClearPath"
     />
 
-    <!-- Search Box (Top-center, Google Maps style) -->
-    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
-      <div class="theme-surface rounded-full shadow-lg px-5 py-3 flex items-center gap-3 min-w-[400px]">
-        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- Search Box (Top-center, Google Maps style) - Mobile Optimized -->
+    <div class="absolute top-2 md:top-4 left-1/2 transform -translate-x-1/2 z-10 w-[calc(100%-1rem)] md:w-auto max-w-[400px]">
+      <div class="theme-surface rounded-full shadow-lg px-3 md:px-5 py-2 md:py-3 flex items-center gap-2 md:gap-3">
+        <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
         <input 
+          v-model="searchQuery"
+          @input="handleSearch"
+          @focus="handleSearch"
           type="text" 
-          placeholder="Search for items, shelves, or aisles..." 
-          class="flex-1 bg-transparent border-none outline-none theme-text placeholder-gray-400 text-sm"
+          placeholder="Search aisles..." 
+          class="flex-1 bg-transparent border-none outline-none theme-text placeholder-gray-400 text-sm min-w-0"
         />
+        <button 
+          v-if="searchQuery"
+          @click="searchQuery = ''; searchResults = []"
+          class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 active:scale-95 transition-all shrink-0 touch-manipulation"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Search Results Dropdown - Mobile Optimized -->
+      <div 
+        v-if="searchResults.length > 0"
+        class="theme-surface rounded-lg shadow-lg mt-2 border theme-border overflow-hidden w-full"
+      >
+        <div class="px-3 md:px-4 py-2 text-xs text-gray-500 border-b theme-border">
+          {{ searchResults.length }} result{{ searchResults.length !== 1 ? 's' : '' }} found
+        </div>
+        <div class="max-h-48 md:max-h-64 overflow-y-auto">
+          <button
+            v-for="result in searchResults"
+            :key="result.shelfId"
+            @click="selectSearchResult(result)"
+            class="w-full px-3 md:px-4 py-3 md:py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center justify-between theme-text transition-colors touch-manipulation"
+          >
+            <div class="flex-1 min-w-0 pr-2">
+              <div class="font-medium truncate">{{ result.name }}</div>
+              <div v-if="result.matchType === 'category'" class="text-xs text-gray-500 truncate">
+                Category: {{ result.categoryName }}
+              </div>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Help Hint (Bottom-center) -->
-    <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-4 py-2 z-10">
-      <div class="text-xs theme-text flex items-center gap-3">
-        <span>💡 Scroll to zoom</span>
+    <!-- Help Hint (Bottom-center) - Mobile Optimized -->
+    <div class="absolute bottom-2 md:bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-3 md:px-4 py-2 z-10 max-w-[calc(100%-8rem)] md:max-w-none">
+      <div class="text-xs theme-text flex items-center gap-2 md:gap-3">
+        <span class="hidden md:inline">💡 Scroll to zoom</span>
+        <span class="md:hidden">💡 Pinch to zoom</span>
         <span class="text-gray-400">•</span>
         <span>Drag to pan</span>
-        <span class="text-gray-400">•</span>
-        <span>Click to select</span>
+        <span class="text-gray-400 hidden md:inline">•</span>
+        <span class="hidden md:inline">Right-click to name</span>
       </div>
     </div>
+
+    <!-- Context Menu -->
+    <ContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :item="contextMenu.item"
+      @close="closeContextMenu"
+      @rename="handleRenameAisle"
+      @delete="handleDeleteAisleName"
+      @set-category="handleSetCategory"
+    />
+
   </div>
 </template>
 

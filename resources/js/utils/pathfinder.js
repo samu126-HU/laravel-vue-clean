@@ -33,6 +33,9 @@ export class PathFinder {
     // Mark obstacles
     this.markObstacles();
     
+    // Ensure START and END points are walkable
+    this.ensureNavigationPointsWalkable();
+    
     // Create PathFinding.js grid
     this.pfGrid = new PF.Grid(cols, rows);
     
@@ -44,6 +47,38 @@ export class PathFinder {
     }
     
     console.log('Pathfinding grid built successfully');
+  }
+
+  /**
+   * Ensure START and END navigation points are marked as walkable
+   */
+  ensureNavigationPointsWalkable() {
+    const points = [];
+    
+    if (this.shopMap.entities.startPoint) {
+      points.push(this.shopMap.entities.startPoint);
+    }
+    
+    if (this.shopMap.entities.endPoint) {
+      points.push(this.shopMap.entities.endPoint);
+    }
+    
+    points.forEach(point => {
+      const gridPos = this.worldToGrid(point);
+      
+      // Mark the point and surrounding cells as walkable (3x3 area)
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const x = gridPos.x + dx;
+          const y = gridPos.y + dy;
+          if (this.isInBounds(x, y)) {
+            this.grid[y][x] = 1; // Mark as walkable
+          }
+        }
+      }
+      
+      console.log(`Ensured navigation point at (${point.x.toFixed(0)}, ${point.y.toFixed(0)}) is walkable`);
+    });
   }
 
   /**

@@ -57,7 +57,10 @@ export class ShopMap {
       circles: [],
       arcs: [],
       text: [],
-      shelves: [] // Grouped connected lines/polylines
+      shelves: [], // Grouped connected lines/polylines
+      splitters: [], // Lines from SPLITTER layer to divide shelves
+      startPoint: null, // Navigation start point from START layer
+      endPoint: null // Navigation end point from END layer
     };
   }
 
@@ -86,6 +89,13 @@ export class ShopMap {
         allPoints.push(...poly.points);
       });
     });
+
+    // Include splitters in bounds calculation
+    if (this.entities.splitters) {
+      this.entities.splitters.forEach(splitter => {
+        allPoints.push(splitter.start, splitter.end);
+      });
+    }
 
     // Calculate bounds
     allPoints.forEach(point => {
@@ -251,6 +261,275 @@ export class ShopMap {
   }
 
   /**
+   * Apply splitter lines to shelves to create sub-sections
+   */
+  applySplittersToShelves() {
+    if (!this.entities.splitters || this.entities.splitters.length === 0) {
+      return;
+    }
+
+    const newShelves = [];
+    
+    this.entities.shelves.forEach(shelf => {
+      // Find splitters that intersect this shelf's bounding box
+      const intersectingSplitters = this.entities.splitters.filter(splitter => 
+        this.splitterIntersectsShelf(splitter, shelf.bounds)
+      );
+
+      if (intersectingSplitters.length === 0) {
+        // No splitters, keep shelf as is
+        newShelves.push(shelf);
+      } else {
+        // Split the shelf based on splitter lines
+        const subShelves = this.splitShelfBySplitters(shelf, intersectingSplitters);
+        newShelves.push(...subShelves);
+      }
+    });
+
+    // Replace shelves with split versions (keep original IDs)
+    this.entities.shelves = newShelves;
+
+    console.log(`Processed splitters: original ${this.entities.shelves.length} shelves, after split: ${newShelves.length} sections`);
+  }
+
+  /**
+   * Check if a splitter line intersects a shelf's bounding box
+   */
+  splitterIntersectsShelf(splitter, bounds) {
+    const { start, end } = splitter;
+    const { minX, maxX, minY, maxY } = bounds;
+
+    // Expand bounds with larger tolerance to catch touching lines
+    const tolerance = 10;
+    const expandedBounds = {
+      minX: minX - tolerance,
+      maxX: maxX + tolerance,
+      minY: minY - tolerance,
+      maxY: maxY + tolerance
+    };
+
+    // Check if either endpoint is inside or near bounds
+    const startNear = start.x >= expandedBounds.minX && start.x <= expandedBounds.maxX &&
+                      start.y >= expandedBounds.minY && start.y <= expandedBounds.maxY;
+    const endNear = end.x >= expandedBounds.minX && end.x <= expandedBounds.maxX &&
+                    end.y >= expandedBounds.minY && end.y <= expandedBounds.maxY;
+
+    if (startNear || endNear) return true;
+
+    // Check if line crosses the shelf bounds
+    return this.lineIntersectsRect(start, end, expandedBounds);
+  }
+
+  /**
+   * Check if a line intersects a rectangle
+   */
+  lineIntersectsRect(start, end, rect) {
+    // Check intersection with each edge of the rectangle
+    const edges = [
+      { start: { x: rect.minX, y: rect.minY }, end: { x: rect.maxX, y: rect.minY } }, // bottom
+      { start: { x: rect.maxX, y: rect.minY }, end: { x: rect.maxX, y: rect.maxY } }, // right
+      { start: { x: rect.maxX, y: rect.maxY }, end: { x: rect.minX, y: rect.maxY } }, // top
+      { start: { x: rect.minX, y: rect.maxY }, end: { x: rect.minX, y: rect.minY } }  // left
+    ];
+
+    return edges.some(edge => this.linesIntersect(start, end, edge.start, edge.end));
+  }
+
+  /**
+   * Check if two line segments intersect
+   */
+  linesIntersect(p1, p2, p3, p4) {
+    const ccw = (a, b, c) => {
+      return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x);
+    };
+    return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && ccw(p1, p2, p3) !== ccw(p1, p2, p4);
+  }
+
+  /**
+   * Split a shelf into sub-shelves based on splitter lines
+   */
+  splitShelfBySplitters(shelf, splitters) {
+    console.log(`Splitting shelf ${shelf.id} with ${splitters.length} splitters`);
+    console.log('Shelf has:', shelf.lines?.length || 0, 'lines,', shelf.polylines?.length || 0, 'polylines');
+    
+    const bounds = shelf.bounds;
+    const subShelves = [];
+
+    // Determine split orientation (vertical or horizontal)
+    const isVerticalSplit = splitters.some(s => 
+      Math.abs(s.end.y - s.start.y) > Math.abs(s.end.x - s.start.x)
+    );
+
+    console.log(`Split orientation: ${isVerticalSplit ? 'VERTICAL' : 'HORIZONTAL'}`);
+
+    if (isVerticalSplit) {
+      // Sort splitters left to right
+      splitters.sort((a, b) => Math.min(a.start.x, a.end.x) - Math.min(b.start.x, b.end.x));
+      
+      let prevX = bounds.minX;
+      
+      splitters.forEach((splitter, index) => {
+        const splitX = (splitter.start.x + splitter.end.x) / 2;
+        
+        // Filter lines that belong to this section
+        const sectionLines = shelf.lines.filter(line => {
+          const lineMinX = Math.min(line.start.x, line.end.x);
+          const lineMaxX = Math.max(line.start.x, line.end.x);
+          const lineCenterX = (lineMinX + lineMaxX) / 2;
+          return lineCenterX >= prevX && lineCenterX < splitX;
+        });
+        
+        const sectionPolylines = shelf.polylines.filter(poly => {
+          const polyCenterX = poly.points.reduce((sum, p) => sum + p.x, 0) / poly.points.length;
+          return polyCenterX >= prevX && polyCenterX < splitX;
+        });
+        
+        if (sectionLines.length > 0 || sectionPolylines.length > 0) {
+          subShelves.push({
+            ...shelf,
+            id: `${shelf.id}-split-${index}`,
+            originalId: shelf.id,
+            isSplit: true,
+            splitIndex: index,
+            lines: sectionLines,
+            polylines: sectionPolylines,
+            bounds: {
+              minX: prevX,
+              maxX: splitX,
+              minY: bounds.minY,
+              maxY: bounds.maxY,
+              width: splitX - prevX,
+              height: bounds.height,
+              centerX: (prevX + splitX) / 2,
+              centerY: bounds.centerY
+            }
+          });
+        }
+        
+        prevX = splitX;
+      });
+      
+      // Add remaining section
+      const remainingLines = shelf.lines.filter(line => {
+        const lineMinX = Math.min(line.start.x, line.end.x);
+        const lineMaxX = Math.max(line.start.x, line.end.x);
+        const lineCenterX = (lineMinX + lineMaxX) / 2;
+        return lineCenterX >= prevX;
+      });
+      
+      const remainingPolylines = shelf.polylines.filter(poly => {
+        const polyCenterX = poly.points.reduce((sum, p) => sum + p.x, 0) / poly.points.length;
+        return polyCenterX >= prevX;
+      });
+      
+      if (remainingLines.length > 0 || remainingPolylines.length > 0) {
+        subShelves.push({
+          ...shelf,
+          id: `${shelf.id}-split-${splitters.length}`,
+          originalId: shelf.id,
+          isSplit: true,
+          splitIndex: splitters.length,
+          lines: remainingLines,
+          polylines: remainingPolylines,
+          bounds: {
+            minX: prevX,
+            maxX: bounds.maxX,
+            minY: bounds.minY,
+            maxY: bounds.maxY,
+            width: bounds.maxX - prevX,
+            height: bounds.height,
+            centerX: (prevX + bounds.maxX) / 2,
+            centerY: bounds.centerY
+          }
+        });
+      }
+    } else {
+      // Horizontal split (top to bottom)
+      splitters.sort((a, b) => Math.min(a.start.y, a.end.y) - Math.min(b.start.y, b.end.y));
+      
+      let prevY = bounds.minY;
+      
+      splitters.forEach((splitter, index) => {
+        const splitY = (splitter.start.y + splitter.end.y) / 2;
+        
+        const sectionLines = shelf.lines.filter(line => {
+          const lineMinY = Math.min(line.start.y, line.end.y);
+          const lineMaxY = Math.max(line.start.y, line.end.y);
+          const lineCenterY = (lineMinY + lineMaxY) / 2;
+          return lineCenterY >= prevY && lineCenterY < splitY;
+        });
+        
+        const sectionPolylines = shelf.polylines.filter(poly => {
+          const polyCenterY = poly.points.reduce((sum, p) => sum + p.y, 0) / poly.points.length;
+          return polyCenterY >= prevY && polyCenterY < splitY;
+        });
+        
+        if (sectionLines.length > 0 || sectionPolylines.length > 0) {
+          subShelves.push({
+            ...shelf,
+            id: `${shelf.id}-split-${index}`,
+            originalId: shelf.id,
+            isSplit: true,
+            splitIndex: index,
+            lines: sectionLines,
+            polylines: sectionPolylines,
+            bounds: {
+              minX: bounds.minX,
+              maxX: bounds.maxX,
+              minY: prevY,
+              maxY: splitY,
+              width: bounds.width,
+              height: splitY - prevY,
+              centerX: bounds.centerX,
+              centerY: (prevY + splitY) / 2
+            }
+          });
+        }
+        
+        prevY = splitY;
+      });
+      
+      // Add remaining section
+      const remainingLines = shelf.lines.filter(line => {
+        const lineMinY = Math.min(line.start.y, line.end.y);
+        const lineMaxY = Math.max(line.start.y, line.end.y);
+        const lineCenterY = (lineMinY + lineMaxY) / 2;
+        return lineCenterY >= prevY;
+      });
+      
+      const remainingPolylines = shelf.polylines.filter(poly => {
+        const polyCenterY = poly.points.reduce((sum, p) => sum + p.y, 0) / poly.points.length;
+        return polyCenterY >= prevY;
+      });
+      
+      if (remainingLines.length > 0 || remainingPolylines.length > 0) {
+        subShelves.push({
+          ...shelf,
+          id: `${shelf.id}-split-${splitters.length}`,
+          originalId: shelf.id,
+          isSplit: true,
+          splitIndex: splitters.length,
+          lines: remainingLines,
+          polylines: remainingPolylines,
+          bounds: {
+            minX: bounds.minX,
+            maxX: bounds.maxX,
+            minY: prevY,
+            maxY: bounds.maxY,
+            width: bounds.width,
+            height: bounds.maxY - prevY,
+            centerX: bounds.centerX,
+            centerY: (prevY + bounds.maxY) / 2
+          }
+        });
+      }
+    }
+
+    console.log(`Created ${subShelves.length} sub-shelves from shelf ${shelf.id}`);
+    return subShelves.length > 0 ? subShelves : [shelf];
+  }
+
+  /**
    * Organize entities by layer
    */
   organizeByLayer() {
@@ -293,6 +572,9 @@ export class ShopMap {
     const map = new ShopMap();
     const shelfLines = [];
     const shelfPolylines = [];
+    const splitterLines = [];
+    let startPoint = null;
+    let endPoint = null;
     
     // Extract lines
     dxfData.entities
@@ -317,8 +599,26 @@ export class ShopMap {
           color: line.color
         };
 
+        // Separate SPLITTER layer lines
+        if (line.layer === 'SPLITTER') {
+          splitterLines.push(lineData);
+        }
+        // Extract START point (use midpoint of line)
+        else if (line.layer === 'START') {
+          const midX = (lineData.start.x + lineData.end.x) / 2;
+          const midY = (lineData.start.y + lineData.end.y) / 2;
+          startPoint = { x: midX, y: midY };
+          console.log('Found START point at:', startPoint);
+        }
+        // Extract END point (use midpoint of line)
+        else if (line.layer === 'END') {
+          const midX = (lineData.start.x + lineData.end.x) / 2;
+          const midY = (lineData.start.y + lineData.end.y) / 2;
+          endPoint = { x: midX, y: midY };
+          console.log('Found END point at:', endPoint);
+        }
         // Separate SHELVES layer lines for grouping
-        if (line.layer === 'SHELVES') {
+        else if (line.layer === 'SHELVES') {
           shelfLines.push(lineData);
         } else {
           map.entities.lines.push(lineData);
@@ -358,13 +658,22 @@ export class ShopMap {
       console.log(`Grouped ${shelfLines.length} lines and ${shelfPolylines.length} polylines into ${map.entities.shelves.length} shelves`);
     }
 
+    // Store splitter lines
+    if (splitterLines.length > 0) {
+      map.entities.splitters = splitterLines;
+      console.log(`Found ${splitterLines.length} splitter lines`);
+      
+      // Apply splitters to shelves to create sub-sections
+      map.applySplittersToShelves();
+    }
+
     // Extract circles
     dxfData.entities
       .filter(e => e.type === 'CIRCLE')
       .forEach(circle => {
         const center = transformPoint(circle.center.x, circle.center.y);
         
-        map.entities.circles.push({
+        const circleData = {
           type: 'circle',
           center: {
             x: center.x,
@@ -374,7 +683,20 @@ export class ShopMap {
           radius: circle.radius,
           layer: circle.layer || 'DEFAULT',
           color: circle.color
-        });
+        };
+        
+        // Extract START point from circle center
+        if (circle.layer === 'START') {
+          startPoint = { x: center.x, y: center.y };
+          console.log('Found START point (circle) at:', startPoint);
+        }
+        // Extract END point from circle center
+        else if (circle.layer === 'END') {
+          endPoint = { x: center.x, y: center.y };
+          console.log('Found END point (circle) at:', endPoint);
+        } else {
+          map.entities.circles.push(circleData);
+        }
       });
 
     // Extract arcs
@@ -426,6 +748,22 @@ export class ShopMap {
     // Calculate bounds and organize
     map.calculateBounds();
     map.organizeByLayer();
+    
+    // Store start and end points
+    map.entities.startPoint = startPoint;
+    map.entities.endPoint = endPoint;
+    
+    if (startPoint) {
+      console.log('Navigation START point set:', startPoint);
+    } else {
+      console.warn('No START point found in DXF (add a circle or line on START layer)');
+    }
+    
+    if (endPoint) {
+      console.log('Navigation END point set:', endPoint);
+    } else {
+      console.warn('No END point found in DXF (add a circle or line on END layer)');
+    }
     
     return map;
   }

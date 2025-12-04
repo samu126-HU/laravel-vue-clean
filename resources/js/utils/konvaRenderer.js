@@ -97,7 +97,16 @@ export function renderPolylines(polylines, layer, colors, strokeWidths) {
 export function renderShelves(shelves, layer, colors, strokeWidths, makeInteractive) {
   if (!shelves) return;
 
+  console.log(`Rendering ${shelves.length} shelves`);
+
   shelves.forEach((shelf) => {
+    console.log(`Rendering shelf ${shelf.id}:`, {
+      lines: shelf.lines?.length || 0,
+      polylines: shelf.polylines?.length || 0,
+      isSplit: shelf.isSplit,
+      bounds: shelf.bounds
+    });
+
     // Create a group for each shelf so all its parts act as one object
     const shelfGroup = new Konva.Group({
       name: 'shelf',
@@ -124,33 +133,37 @@ export function renderShelves(shelves, layer, colors, strokeWidths, makeInteract
 
     // Add all lines in this shelf to the group
     const shelfColor = getColors('SHELVES');
-    shelf.lines.forEach((line, lineIndex) => {
-      const konvaLine = new Konva.Line({
-        points: [line.start.x, line.start.y, line.end.x, line.end.y],
-        stroke: shelfColor,
-        strokeWidth: strokeWidths.lines,
-        lineCap: 'round',
-        name: 'shelf-line',
-        id: `shelf-${shelf.id}-line-${lineIndex}`
+    if (shelf.lines && shelf.lines.length > 0) {
+      shelf.lines.forEach((line, lineIndex) => {
+        const konvaLine = new Konva.Line({
+          points: [line.start.x, line.start.y, line.end.x, line.end.y],
+          stroke: shelfColor,
+          strokeWidth: strokeWidths.lines,
+          lineCap: 'round',
+          name: 'shelf-line',
+          id: `shelf-${shelf.id}-line-${lineIndex}`
+        });
+        shelfGroup.add(konvaLine);
       });
-      shelfGroup.add(konvaLine);
-    });
+    }
 
     // Add all polylines in this shelf to the group
-    shelf.polylines.forEach((poly, polyIndex) => {
-      const points = poly.points.flatMap(p => [p.x, p.y]);
-      const konvaPoly = new Konva.Line({
-        points: points,
-        fill: shelfColor,
-        fillOpacity: 0.4,
-        stroke: shelfColor,
-        strokeWidth: strokeWidths.polylines,
-        closed: true,
-        name: 'shelf-poly',
-        id: `shelf-${shelf.id}-poly-${polyIndex}`
+    if (shelf.polylines && shelf.polylines.length > 0) {
+      shelf.polylines.forEach((poly, polyIndex) => {
+        const points = poly.points.flatMap(p => [p.x, p.y]);
+        const konvaPoly = new Konva.Line({
+          points: points,
+          fill: shelfColor,
+          fillOpacity: 0.4,
+          stroke: shelfColor,
+          strokeWidth: strokeWidths.polylines,
+          closed: true,
+          name: 'shelf-poly',
+          id: `shelf-${shelf.id}-poly-${polyIndex}`
+        });
+        shelfGroup.add(konvaPoly);
       });
-      shelfGroup.add(konvaPoly);
-    });
+    }
 
     // Make the entire group interactive
     if (makeInteractive) {
@@ -246,6 +259,33 @@ export function renderText(texts, layer, colors) {
     });
 
     layer.add(konvaText);
+  });
+}
+
+/**
+ * Render splitter lines to a Konva layer (optional, for visualization)
+ * @param {Array} splitters - Array of splitter line entities
+ * @param {Konva.Layer} layer - Konva layer to add shapes to
+ * @param {number} strokeWidth - Width of the splitter lines
+ */
+export function renderSplitters(splitters, layer, strokeWidth = 2) {
+  if (!splitters || splitters.length === 0) return;
+
+  splitters.forEach((splitter, index) => {
+    const konvaLine = new Konva.Line({
+      points: [splitter.start.x, splitter.start.y, splitter.end.x, splitter.end.y],
+      stroke: '#f59e0b', // Orange color for splitters
+      strokeWidth: strokeWidth,
+      dash: [10, 5], // Dashed line
+      lineCap: 'round',
+      opacity: 0.6,
+      name: 'splitter',
+      id: `splitter-${index}`,
+      listening: false,
+      data: { type: 'splitter', originalData: splitter }
+    });
+
+    layer.add(konvaLine);
   });
 }
 
