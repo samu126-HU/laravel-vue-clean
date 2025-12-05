@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue';
 import { PathFinder } from '../utils/pathfinder';
 import { renderPath, clearPaths } from '../utils/konvaRenderer';
+import { calculateShelfAccessPoints } from '../utils/accessPointCalculator';
 import Konva from 'konva';
 
 export function usePathfinding() {
@@ -22,7 +23,19 @@ export function usePathfinding() {
     startPoint.value = shopMap.entities.startPoint;
     endPoint.value = shopMap.entities.endPoint;
     
-    calculateAisleNavigationPoints(shopMap);
+    // Use stored access points if available, otherwise calculate them
+    if (shopMap.shelfAccessPoints && Object.keys(shopMap.shelfAccessPoints).length > 0) {
+      console.log('Using stored shelf access points from database');
+      aisleNavigationPoints.value = shopMap.shelfAccessPoints;
+    } else {
+      console.log('Calculating shelf access points (not found in database)');
+      const calculatedPoints = calculateShelfAccessPoints(shopMap, pathfinder.value);
+      aisleNavigationPoints.value = calculatedPoints;
+      
+      // Return calculated points so they can be saved
+      return calculatedPoints;
+    }
+    
     console.log('PathFinder initialized with aisle navigation points');
     
     if (startPoint.value) {

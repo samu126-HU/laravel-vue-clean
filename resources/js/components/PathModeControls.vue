@@ -52,41 +52,41 @@ function getRouteItems() {
 
 <template>
   <div>
-    <!-- Pathfinding Toggle Button -->
+    <!-- Pathfinding Toggle Button - Mobile Optimized -->
     <button 
       @click="emit('toggle-path-mode')" 
-      :class="['absolute top-4 right-4 theme-surface rounded-lg shadow-lg px-4 py-2 hover:shadow-xl transition-all z-10 theme-text font-medium flex items-center gap-2',
+      :class="['absolute top-20 right-2 md:top-4 md:right-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl active:scale-95 transition-all z-20 theme-text text-sm md:text-base font-medium flex items-center gap-2 touch-manipulation',
         pathMode ? 'ring-2 ring-blue-500' : '']"
     >
-      <span class="text-lg">{{ pathMode ? '🧭' : '🗺️' }}</span>
-      <span>{{ pathMode ? 'Navigation Mode' : 'Navigate' }}</span>
+      <span class="text-base md:text-lg">{{ pathMode ? '🧭' : '🗺️' }}</span>
+      <span class="hidden sm:inline">{{ pathMode ? 'Navigation' : 'Navigate' }}</span>
       <span v-if="pathMode && selectedAisles.length > 0" class="ml-1 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
         {{ selectedAisles.length }}
       </span>
     </button>
 
-    <!-- Clear Path Button -->
+    <!-- Clear Path Button - Mobile Optimized -->
     <button 
       v-if="pathMode && selectedAisles.length > 0"
       @click="emit('clear-path')"
-      class="absolute top-4 right-52 theme-surface rounded-lg shadow-lg px-3 py-2 hover:shadow-xl transition-all z-10 theme-text text-sm flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-900"
+      class="absolute top-20 right-24 sm:right-32 md:top-4 md:right-52 theme-surface rounded-lg shadow-lg px-2 py-2 md:px-3 hover:shadow-xl active:scale-95 transition-all z-20 theme-text text-xs md:text-sm flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-900 touch-manipulation"
     >
       <span>🗑️</span>
-      <span>Clear Route</span>
+      <span class="hidden sm:inline">Clear</span>
     </button>
 
-    <!-- Path Mode Instructions & Selected Aisles -->
+    <!-- Path Mode Instructions & Selected Aisles - Mobile Optimized -->
     <transition name="slide-down">
-      <div v-if="pathMode" class="absolute top-20 right-4 theme-surface rounded-lg shadow-lg px-4 py-3 z-10 max-w-xs">
-        <div class="mb-3">
-          <p class="text-sm theme-text font-semibold mb-1">🧭 Select aisles to navigate</p>
-          <p class="text-xs theme-text opacity-70">
+      <div v-if="pathMode" class="absolute top-32 left-2 right-2 md:top-20 md:left-auto md:right-4 theme-surface rounded-lg shadow-lg px-3 md:px-4 py-3 z-20 max-w-full md:max-w-xs">
+        <div class="mb-2 md:mb-3">
+          <p class="text-xs md:text-sm theme-text font-semibold mb-1">🧭 Select aisles to navigate</p>
+          <p class="text-xs theme-text opacity-70 hidden md:block">
             Click on aisles to add them to your route
           </p>
         </div>
         
         <!-- Selected Aisles List -->
-        <div v-if="selectedAisles.length > 0 || startPoint || endPoint" class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+        <div v-if="selectedAisles.length > 0 || startPoint || endPoint" class="border-t border-gray-200 dark:border-gray-700 pt-2">
           <p class="text-xs theme-text font-semibold mb-2">Optimized Route:</p>
           <div class="space-y-1">
             <div 

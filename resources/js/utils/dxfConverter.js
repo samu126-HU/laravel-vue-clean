@@ -786,7 +786,31 @@ export class ShopMap {
     return {
       bounds: this.bounds,
       layers: this.layers,
-      entities: this.entities
+      entities: this.entities,
+      aisleNames: this.aisleNames || {},
+      aisleCategories: this.aisleCategories || {},
+      shelfAccessPoints: this.shelfAccessPoints || {}
     };
+  }
+
+  /**
+   * Set aisle names (from database or user input)
+   */
+  setAisleNames(names) {
+    this.aisleNames = names || {};
+  }
+
+  /**
+   * Set aisle categories (from database or user input)
+   */
+  setAisleCategories(categories) {
+    this.aisleCategories = categories || {};
+  }
+
+  /**
+   * Set shelf access points (from database or computed)
+   */
+  setShelfAccessPoints(accessPoints) {
+    this.shelfAccessPoints = accessPoints || {};
   }
 }

@@ -25,8 +25,11 @@ function handleFileUpload(event) {
 function readFile(file) {
   const reader = new FileReader();
   
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
+      // Parse in next tick to prevent UI blocking
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
       const map = parseAndConvert(e.target.result);
       
       if (map) {

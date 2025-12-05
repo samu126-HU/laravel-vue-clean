@@ -39,7 +39,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated']);
+const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated', 'access-points-calculated', 'access-point-updated']);
 
 const strokeWidths = {
   lines: 10,
@@ -63,9 +63,11 @@ const contextMenu = ref({
 });
 const aisleNames = ref({});
 const aisleCategories = ref({});
+const shelfAccessPoints = ref({});
 const searchQuery = ref('');
 const searchResults = ref([]);
 const categories = ref([]);
+const settingAccessPointFor = ref(null);
 let darkModeCleanup = null;
 
 const ZOOM_MIN = 0.1;
@@ -96,6 +98,11 @@ onMounted(() => {
   // Load aisle categories from map data
   if (props.shopMap?.aisleCategories) {
     aisleCategories.value = { ...props.shopMap.aisleCategories };
+  }
+  
+  // Load shelf access points from map data
+  if (props.shopMap?.shelfAccessPoints) {
+    shelfAccessPoints.value = { ...props.shopMap.shelfAccessPoints };
   }
   
   // Load categories for search
@@ -176,8 +183,12 @@ function renderMap(map) {
   const scale = fitStageToMap(stage.value, containerRef.value, bounds, padding);
   zoom.value = scale;
   
-  // Initialize pathfinder
-  initPathfinder(map, 20);
+  // Initialize pathfinder and calculate access points if needed
+  const calculatedAccessPoints = initPathfinder(map, 20);
+  if (calculatedAccessPoints && Object.keys(calculatedAccessPoints).length > 0) {
+    // Emit calculated access points to be saved
+    emit('access-points-calculated', calculatedAccessPoints);
+  }
 }
 
 function makeInteractive(shape) {
@@ -411,6 +422,51 @@ function handleSetCategory(categoryIds) {
     });
   }
 }
+
+function handleSetAccessPoint() {
+  if (!contextMenu.value.item) return;
+  
+  const shelfId = contextMenu.value.item.data?.shelfId;
+  console.log('Setting access point mode for shelf:', shelfId);
+  
+  settingAccessPointFor.value = shelfId;
+  document.body.style.cursor = 'crosshair';
+  
+  // Add a temporary click listener to the stage
+  const stageClickHandler = (e) => {
+    // Get click position relative to the stage
+    const pos = stage.value.getPointerPosition();
+    const stageAttrs = stage.value.attrs;
+    
+    // Transform to map coordinates
+    const x = (pos.x - stageAttrs.x) / stageAttrs.scaleX;
+    const y = (pos.y - stageAttrs.y) / stageAttrs.scaleY;
+    
+    console.log(`Setting access point for shelf ${shelfId} at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+    
+    // Store the access point
+    shelfAccessPoints.value[shelfId] = {
+      x,
+      y,
+      method: 'manual',
+      shelfId
+    };
+    
+    // Emit event to save to database
+    emit('access-point-updated', {
+      shelfId,
+      accessPoint: shelfAccessPoints.value[shelfId],
+      allAccessPoints: shelfAccessPoints.value
+    });
+    
+    // Clean up
+    settingAccessPointFor.value = null;
+    document.body.style.cursor = 'default';
+    stage.value.off('click', stageClickHandler);
+  };
+  
+  stage.value.on('click', stageClickHandler);
+}
 </script>
 
 <template>
@@ -418,14 +474,12 @@ function handleSetCategory(categoryIds) {
     <!-- Konva Canvas Container -->
     <div ref="containerRef" class="w-full h-full"></div>
 
-    <!-- Info Panel (Top-left) - Mobile Optimized -->
+    <!-- Info Panel (Top-left) -->
     <transition name="slide-right">
-      <div v-show="showInfo" class="absolute top-2 left-2 md:top-4 md:left-4 theme-surface rounded-lg shadow-lg p-3 md:p-4 max-w-[calc(100vw-1rem)] md:max-w-sm z-10">
-        <button @click="showInfo = false" class="absolute top-1 right-1 md:top-2 md:right-2 w-7 h-7 md:w-6 md:h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 flex items-center justify-center text-sm theme-text transition-transform">
-          ✕
-        </button>
+      <div v-show="showInfo" class="absolute top-20 md:top-4 left-2 md:left-4 right-2 md:right-auto theme-surface rounded-lg shadow-lg p-3 md:p-4 max-w-full md:max-w-sm z-10">
+        <button @click="showInfo = false" class="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-sm theme-text">✕</button>
         
-        <h2 v-if="shopName" class="text-lg md:text-xl font-bold theme-text mb-2 flex items-center gap-2 pr-6">
+        <h2 v-if="shopName" class="text-lg md:text-xl font-bold theme-text mb-2 flex items-center gap-2">
           <span>📍</span>
           <span class="truncate">{{ shopName }}</span>
         </h2>
@@ -434,33 +488,33 @@ function handleSetCategory(categoryIds) {
       </div>
     </transition>
 
-    <button v-show="!showInfo" @click="showInfo = true" class="absolute top-2 left-2 md:top-4 md:left-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl active:scale-95 transition-all z-10 theme-text text-sm md:text-base font-medium">
+    <button v-show="!showInfo" @click="showInfo = true" class="absolute top-20 md:top-4 left-2 md:left-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl transition-shadow z-10 theme-text text-sm md:text-base font-medium">
       ℹ️ Info
     </button>
 
-    <!-- Zoom Controls (Bottom-right, Google Maps style) - Mobile Optimized -->
+    <!-- Zoom Controls (Bottom-right, Google Maps style) -->
     <transition name="slide-left">
-      <div v-show="showControls" class="absolute bottom-20 md:bottom-24 right-2 md:right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
-        <button @click="zoomIn" class="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 border-b border-gray-200 dark:border-gray-700 theme-text text-2xl md:text-xl font-bold transition-colors touch-manipulation">
+      <div v-show="showControls" class="absolute bottom-16 md:bottom-24 right-2 md:right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
+        <button @click="zoomIn" class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-all touch-manipulation">
           +
         </button>
-        <button @click="zoomOut" class="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 border-b border-gray-200 dark:border-gray-700 theme-text text-2xl md:text-xl font-bold transition-colors touch-manipulation">
+        <button @click="zoomOut" class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-all touch-manipulation">
           −
         </button>
-        <button @click="resetView" class="w-12 h-12 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 theme-text text-xl md:text-lg transition-colors touch-manipulation" title="Reset view">
+        <button @click="resetView" class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 theme-text text-lg transition-all touch-manipulation" title="Reset view">
           ⟲
         </button>
       </div>
     </transition>
 
-    <!-- Zoom Level Indicator - Mobile Optimized -->
-    <div v-show="showControls" class="absolute bottom-2 md:bottom-4 right-2 md:right-4 theme-surface rounded-lg shadow-lg px-3 py-2 z-10">
+    <!-- Zoom Level Indicator -->
+    <div v-show="showControls" class="absolute bottom-4 right-2 md:right-4 theme-surface rounded-lg shadow-lg px-2 py-1 md:px-3 md:py-2 z-10">
       <div class="text-xs font-medium theme-text">
         {{ (zoom * 100).toFixed(0) }}%
       </div>
     </div>
 
-    <button v-show="!showControls" @click="showControls = true" class="absolute bottom-2 md:bottom-4 right-2 md:right-4 theme-surface rounded-full shadow-lg w-14 h-14 md:w-12 md:h-12 flex items-center justify-center hover:shadow-xl active:scale-95 transition-all z-10 text-2xl md:text-xl touch-manipulation">
+    <button v-show="!showControls" @click="showControls = true" class="absolute bottom-4 right-2 md:right-4 theme-surface rounded-full shadow-lg w-10 h-10 md:w-12 md:h-12 flex items-center justify-center hover:shadow-xl active:scale-95 transition-all z-10 text-lg md:text-xl touch-manipulation">
       🎛️
     </button>
 
@@ -475,9 +529,9 @@ function handleSetCategory(categoryIds) {
       @clear-path="handleClearPath"
     />
 
-    <!-- Search Box (Top-center, Google Maps style) - Mobile Optimized -->
-    <div class="absolute top-2 md:top-4 left-1/2 transform -translate-x-1/2 z-10 w-[calc(100%-1rem)] md:w-auto max-w-[400px]">
-      <div class="theme-surface rounded-full shadow-lg px-3 md:px-5 py-2 md:py-3 flex items-center gap-2 md:gap-3">
+    <!-- Search Box (Top-center, Google Maps style) -->
+    <div class="absolute top-4 left-2 right-2 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 z-10">
+      <div class="theme-surface rounded-full shadow-lg px-3 py-2 md:px-5 md:py-3 flex items-center gap-2 md:gap-3 w-full md:min-w-[400px] md:w-auto">
         <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
@@ -492,7 +546,7 @@ function handleSetCategory(categoryIds) {
         <button 
           v-if="searchQuery"
           @click="searchQuery = ''; searchResults = []"
-          class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 active:scale-95 transition-all shrink-0 touch-manipulation"
+          class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0 active:scale-95 touch-manipulation"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -500,7 +554,7 @@ function handleSetCategory(categoryIds) {
         </button>
       </div>
       
-      <!-- Search Results Dropdown - Mobile Optimized -->
+      <!-- Search Results Dropdown -->
       <div 
         v-if="searchResults.length > 0"
         class="theme-surface rounded-lg shadow-lg mt-2 border theme-border overflow-hidden w-full"
@@ -513,15 +567,15 @@ function handleSetCategory(categoryIds) {
             v-for="result in searchResults"
             :key="result.shelfId"
             @click="selectSearchResult(result)"
-            class="w-full px-3 md:px-4 py-3 md:py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center justify-between theme-text transition-colors touch-manipulation"
+            class="w-full px-3 md:px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center justify-between theme-text transition-colors touch-manipulation"
           >
-            <div class="flex-1 min-w-0 pr-2">
-              <div class="font-medium truncate">{{ result.name }}</div>
+            <div class="min-w-0 flex-1">
+              <div class="font-medium truncate text-sm">{{ result.name }}</div>
               <div v-if="result.matchType === 'category'" class="text-xs text-gray-500 truncate">
                 Category: {{ result.categoryName }}
               </div>
             </div>
-            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </button>
@@ -529,8 +583,8 @@ function handleSetCategory(categoryIds) {
       </div>
     </div>
 
-    <!-- Help Hint (Bottom-center) - Mobile Optimized -->
-    <div class="absolute bottom-2 md:bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-3 md:px-4 py-2 z-10 max-w-[calc(100%-8rem)] md:max-w-none">
+    <!-- Help Hint (Bottom-center) -->
+    <div class="hidden sm:block absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-3 md:px-4 py-2 z-10">
       <div class="text-xs theme-text flex items-center gap-2 md:gap-3">
         <span class="hidden md:inline">💡 Scroll to zoom</span>
         <span class="md:hidden">💡 Pinch to zoom</span>
@@ -551,6 +605,7 @@ function handleSetCategory(categoryIds) {
       @rename="handleRenameAisle"
       @delete="handleDeleteAisleName"
       @set-category="handleSetCategory"
+      @set-access-point="handleSetAccessPoint"
     />
 
   </div>

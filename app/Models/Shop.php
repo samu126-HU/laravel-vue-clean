@@ -13,12 +13,14 @@ class Shop extends Model
         'map_data',
         'aisle_names',
         'aisle_categories',
+        'shelf_access_points',
     ];
 
     protected $casts = [
         'map_data' => 'array',
         'aisle_names' => 'array',
         'aisle_categories' => 'array',
+        'shelf_access_points' => 'array',
     ];
 
     /**

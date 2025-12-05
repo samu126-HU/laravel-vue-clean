@@ -44,6 +44,7 @@ class ShopController extends Controller
             'map_data' => 'required|array',
             'aisle_names' => 'nullable|array',
             'aisle_categories' => 'nullable|array',
+            'shelf_access_points' => 'nullable|array',
         ]);
 
         $shop = Shop::create($validated);
@@ -83,6 +84,7 @@ class ShopController extends Controller
             'map_data' => 'required|array',
             'aisle_names' => 'nullable|array',
             'aisle_categories' => 'nullable|array',
+            'shelf_access_points' => 'nullable|array',
         ]);
 
         $shop->update($validated);

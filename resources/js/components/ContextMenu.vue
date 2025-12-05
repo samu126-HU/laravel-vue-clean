@@ -21,12 +21,13 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close', 'rename', 'delete', 'set-category']);
+const emit = defineEmits(['close', 'rename', 'delete', 'set-category', 'set-access-point']);
 
 const inputRef = ref(null);
 const nameInput = ref('');
 const isEditing = ref(false);
 const isSelectingCategory = ref(false);
+const isSettingAccessPoint = ref(false);
 const categories = ref([]);
 const selectedCategories = ref([]);
 
@@ -46,12 +47,14 @@ watch(() => props.visible, (visible) => {
     selectedCategories.value = props.item?.categories || [];
     isEditing.value = false;
     isSelectingCategory.value = false;
+    isSettingAccessPoint.value = false;
   }
 });
 
 function startRename() {
   isEditing.value = true;
   isSelectingCategory.value = false;
+  isSettingAccessPoint.value = false;
   nextTick(() => {
     inputRef.value?.focus();
     inputRef.value?.select();
@@ -61,6 +64,16 @@ function startRename() {
 function startCategorySelection() {
   isSelectingCategory.value = true;
   isEditing.value = false;
+  isSettingAccessPoint.value = false;
+}
+
+function startAccessPointSetting() {
+  isSettingAccessPoint.value = true;
+  isEditing.value = false;
+  isSelectingCategory.value = false;
+  emit('close');
+  // The actual click handling will be done in MapViewer
+  emit('set-access-point', 'start');
 }
 
 function toggleCategory(categoryId) {
@@ -212,6 +225,14 @@ function getCategoryById(id) {
           >
             <span class="text-lg">🏷️</span>
             <span>Set Categories</span>
+          </button>
+
+          <button
+            @click="startAccessPointSetting"
+            class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
+          >
+            <span class="text-lg">📍</span>
+            <span>Set Access Point</span>
           </button>
 
           <div class="border-t border-gray-200 dark:border-gray-700"></div>
