@@ -215,9 +215,7 @@ function makeInteractive(shape) {
       const shelfId = shape.attrs.data?.shelfId;
       if (shelfId !== undefined && shelfId !== null) {
         handleAisleSelection(shelfId, mainLayer.value);
-        // Highlight selected aisle
-        updateShapeColors(shape, getColors(), strokeWidths, true);
-        mainLayer.value.batchDraw();
+        // Note: handleAisleSelection will handle highlighting through path visualization
       }
     } else {
       selectItem(shape);
@@ -287,6 +285,50 @@ function resetView() {
 
 function handleClearPath() {
   resetPathMode(mainLayer.value);
+  
+  // Reset all shelf highlights to original state
+  if (mainLayer.value) {
+    const allShelves = mainLayer.value.find('.shelf-group');
+    allShelves.forEach(shelf => {
+      updateShapeColors(shelf, getColors(), strokeWidths, false);
+    });
+    mainLayer.value.batchDraw();
+  }
+}
+
+function selectAislesByCategory(categoryId) {
+  if (!pathMode.value) {
+    console.warn('Path mode must be enabled to select aisles by category');
+    return;
+  }
+
+  if (!props.shopMap?.entities?.shelves) {
+    console.error('No shelves found in map');
+    return;
+  }
+
+  let selectedCount = 0;
+  
+  // Find all shelves that have this category
+  props.shopMap.entities.shelves.forEach(shelf => {
+    const shelfId = shelf.id;
+    const categoryIds = aisleCategories.value[shelfId] || [];
+    
+    if (categoryIds.includes(categoryId)) {
+      // Check if not already selected
+      if (!selectedAisles.value.includes(shelfId)) {
+        handleAisleSelection(shelfId, mainLayer.value);
+        selectedCount++;
+      }
+    }
+  });
+
+  console.log(`Auto-selected ${selectedCount} aisles with category ${categoryId}`);
+  
+  if (selectedCount === 0) {
+    const category = categories.value.find(c => c.id === categoryId);
+    alert(`No aisles found with category: ${category?.name || categoryId}`);
+  }
 }
 
 async function loadCategories() {
@@ -527,6 +569,7 @@ function handleSetAccessPoint() {
       :end-point="endPoint"
       @toggle-path-mode="togglePathMode"
       @clear-path="handleClearPath"
+      @select-by-category="selectAislesByCategory"
     />
 
     <!-- Search Box (Top-center, Google Maps style) -->

@@ -1,4 +1,7 @@
 <script setup>
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+
 const props = defineProps({
   pathMode: {
     type: Boolean,
@@ -22,7 +25,20 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['toggle-path-mode', 'clear-path']);
+const emit = defineEmits(['toggle-path-mode', 'clear-path', 'select-by-category']);
+
+const categories = ref([]);
+const showCategoryMenu = ref(false);
+
+onMounted(async () => {
+  // Load categories
+  try {
+    const response = await axios.get('/api/categories');
+    categories.value = response.data.categories;
+  } catch (error) {
+    console.error('Error loading categories:', error);
+  }
+});
 
 function getAisleName(aisleId) {
   return props.aisleNames[aisleId] || `Aisle ${aisleId}`;
@@ -47,6 +63,11 @@ function getRouteItems() {
   }
   
   return items;
+}
+
+function handleSelectByCategory(categoryId) {
+  emit('select-by-category', categoryId);
+  showCategoryMenu.value = false;
 }
 </script>
 
@@ -74,6 +95,37 @@ function getRouteItems() {
       <span>🗑️</span>
       <span class="hidden sm:inline">Clear</span>
     </button>
+
+    <!-- Select by Category Button -->
+    <div v-if="pathMode" class="absolute top-32 sm:top-20 right-2 md:top-16 md:right-4 z-20">
+      <button 
+        @click="showCategoryMenu = !showCategoryMenu"
+        class="theme-surface rounded-lg shadow-lg px-2 py-2 md:px-3 hover:shadow-xl active:scale-95 transition-all theme-text text-xs md:text-sm flex items-center gap-1 hover:bg-blue-50 dark:hover:bg-blue-900 touch-manipulation"
+      >
+        <span>🏷️</span>
+        <span class="hidden sm:inline">Select by Category</span>
+      </button>
+
+      <!-- Category Dropdown Menu -->
+      <transition name="slide-down">
+        <div v-if="showCategoryMenu" class="absolute right-0 mt-2 theme-surface rounded-lg shadow-xl overflow-hidden min-w-[200px] max-h-[300px] overflow-y-auto">
+          <div class="py-1">
+            <button
+              v-for="category in categories"
+              :key="category.id"
+              @click="handleSelectByCategory(category.id)"
+              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-2 transition-colors"
+            >
+              <span class="text-lg">{{ category.icon }}</span>
+              <span>{{ category.name }}</span>
+            </button>
+            <div v-if="categories.length === 0" class="px-4 py-2 text-sm theme-text opacity-60">
+              No categories available
+            </div>
+          </div>
+        </div>
+      </transition>
+    </div>
 
     <!-- Path Mode Instructions & Selected Aisles - Mobile Optimized -->
     <transition name="slide-down">

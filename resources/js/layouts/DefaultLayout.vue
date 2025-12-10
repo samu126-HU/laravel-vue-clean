@@ -1,6 +1,14 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage, router } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import ThemeToggle from '../components/ThemeToggle.vue';
+
+const page = usePage();
+const user = computed(() => page.props.auth?.user);
+
+const logout = () => {
+    router.post('/logout');
+};
 </script>
 
 <template>
@@ -62,6 +70,16 @@ import ThemeToggle from '../components/ThemeToggle.vue';
                         </li>
                         <li>
                             <ThemeToggle variant="icon" />
+                        </li>
+                        <li v-if="!user">
+                            <Link href="/login" class="px-3 py-2 rounded hover:underline transition-all">Bejelentkezés</Link>
+                        </li>
+                        <li v-if="!user">
+                            <Link href="/register" class="theme-btn-primary px-4 py-2 rounded-lg transition-all">Regisztráció</Link>
+                        </li>
+                        <li v-if="user" class="flex items-center gap-2">
+                            <span class="theme-text opacity-70">{{ user.name }}</span>
+                            <button @click="logout" class="px-4 py-2 rounded-lg border border-current hover:opacity-70 transition-all">Kilépés</button>
                         </li>
                     </ul>
                 </div>

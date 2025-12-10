@@ -164,6 +164,12 @@ export function usePathfinding() {
       return;
     }
 
+    // Check if aisle is already selected
+    if (selectedAisles.value.includes(shelfId)) {
+      console.log(`Aisle ${shelfId} is already selected, ignoring`);
+      return;
+    }
+
     // Add aisle to selection
     selectedAisles.value.push(shelfId);
     console.log(`Selected aisle ${shelfId}, total: ${selectedAisles.value.length}`);

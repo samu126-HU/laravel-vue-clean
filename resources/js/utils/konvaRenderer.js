@@ -303,20 +303,30 @@ export function updateShapeColors(shape, colors, strokeWidths, isHover = true) {
     shape.getChildren().forEach(child => {
       if (child.name() === 'shelf-bg') return; // Skip invisible background
       
+      // Store original width if not already stored
+      if (!child.attrs.originalStrokeWidth) {
+        child.setAttr('originalStrokeWidth', child.strokeWidth());
+      }
+      
       if (isHover) {
-        child.strokeWidth((child.attrs.strokeWidth || strokeWidths.lines) * 1.5);
+        child.strokeWidth(child.attrs.originalStrokeWidth * 1.5);
       } else {
-        child.strokeWidth((child.attrs.strokeWidth || strokeWidths.lines) / 1.5);
+        child.strokeWidth(child.attrs.originalStrokeWidth);
       }
     });
   } else {
+    // Store original width if not already stored
+    if (!shape.attrs.originalStrokeWidth) {
+      shape.setAttr('originalStrokeWidth', shape.strokeWidth());
+    }
+    
     if (isHover) {
       shape.stroke(colorConfig.hover);
-      shape.strokeWidth(strokeWidths[shape.attrs.data.type + 's'] * 1.5);
+      shape.strokeWidth(shape.attrs.originalStrokeWidth * 1.5);
     } else {
       const originalColor = getColors(shape.attrs.data.layer);
       shape.stroke(originalColor);
-      shape.strokeWidth(strokeWidths[shape.attrs.data.type + 's']);
+      shape.strokeWidth(shape.attrs.originalStrokeWidth);
     }
   }
 }
@@ -335,18 +345,28 @@ export function updateShapeSelection(shape, colors, strokeWidths, isSelected = t
     shape.getChildren().forEach(child => {
       if (child.name() === 'shelf-bg') return; // Skip invisible background
       
+      // Store original width if not already stored
+      if (!child.attrs.originalStrokeWidth) {
+        child.setAttr('originalStrokeWidth', child.strokeWidth());
+      }
+      
       if (isSelected) {
         child.stroke(colorConfig.selected);
-        child.strokeWidth((child.attrs.strokeWidth || strokeWidths.lines) * 2);
+        child.strokeWidth(child.attrs.originalStrokeWidth * 2);
       } else {
         child.stroke(getColors('SHELVES'));
-        child.strokeWidth((child.attrs.strokeWidth || strokeWidths.lines) / 2);
+        child.strokeWidth(child.attrs.originalStrokeWidth);
       }
     });
   } else {
+    // Store original width if not already stored
+    if (!shape.attrs.originalStrokeWidth) {
+      shape.setAttr('originalStrokeWidth', shape.strokeWidth());
+    }
+    
     if (isSelected) {
       shape.stroke(colorConfig.selected);
-      shape.strokeWidth(strokeWidths[shape.attrs.data.type + 's'] * 2);
+      shape.strokeWidth(shape.attrs.originalStrokeWidth * 2);
     } else {
       const originalColor = getColors(shape.attrs.data.layer);
       shape.stroke(originalColor);
