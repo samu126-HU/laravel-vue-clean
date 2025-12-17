@@ -4,14 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\ShoppingList;
 use App\Models\ShoppingListItem;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ShoppingListController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $lists = $request->user()->shoppingLists()->with('items.product.category')->get();
         return response()->json($lists);
@@ -20,7 +24,7 @@ class ShoppingListController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -33,12 +37,9 @@ class ShoppingListController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Request $request, ShoppingList $shoppingList)
+    public function show(ShoppingList $shoppingList): JsonResponse
     {
-        // Ensure user owns this list
-        if ($shoppingList->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('view', $shoppingList);
 
         $shoppingList->load('items.product.category');
         return response()->json($shoppingList);
@@ -47,12 +48,9 @@ class ShoppingListController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, ShoppingList $shoppingList)
+    public function update(Request $request, ShoppingList $shoppingList): JsonResponse
     {
-        // Ensure user owns this list
-        if ($shoppingList->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('update', $shoppingList);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -65,12 +63,9 @@ class ShoppingListController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Request $request, ShoppingList $shoppingList)
+    public function destroy(ShoppingList $shoppingList): JsonResponse
     {
-        // Ensure user owns this list
-        if ($shoppingList->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('delete', $shoppingList);
 
         $shoppingList->delete();
         return response()->json(['message' => 'Shopping list deleted successfully']);
@@ -79,12 +74,9 @@ class ShoppingListController extends Controller
     /**
      * Add item to shopping list
      */
-    public function addItem(Request $request, ShoppingList $shoppingList)
+    public function addItem(Request $request, ShoppingList $shoppingList): JsonResponse
     {
-        // Ensure user owns this list
-        if ($shoppingList->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->authorize('manageItems', $shoppingList);
 
         $validated = $request->validate([
             'product_id' => 'nullable|exists:products,id',
@@ -100,11 +92,12 @@ class ShoppingListController extends Controller
     /**
      * Update shopping list item
      */
-    public function updateItem(Request $request, ShoppingList $shoppingList, ShoppingListItem $item)
+    public function updateItem(Request $request, ShoppingList $shoppingList, ShoppingListItem $item): JsonResponse
     {
-        // Ensure user owns this list
-        if ($shoppingList->user_id !== $request->user()->id || $item->shopping_list_id !== $shoppingList->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $this->authorize('manageItems', $shoppingList);
+
+        if ($item->shopping_list_id !== $shoppingList->id) {
+            return response()->json(['message' => 'Item does not belong to this list'], 403);
         }
 
         $validated = $request->validate([
@@ -121,11 +114,12 @@ class ShoppingListController extends Controller
     /**
      * Remove item from shopping list
      */
-    public function removeItem(Request $request, ShoppingList $shoppingList, ShoppingListItem $item)
+    public function removeItem(ShoppingList $shoppingList, ShoppingListItem $item): JsonResponse
     {
-        // Ensure user owns this list
-        if ($shoppingList->user_id !== $request->user()->id || $item->shopping_list_id !== $shoppingList->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $this->authorize('manageItems', $shoppingList);
+
+        if ($item->shopping_list_id !== $shoppingList->id) {
+            return response()->json(['message' => 'Item does not belong to this list'], 403);
         }
 
         $item->delete();

@@ -5,6 +5,10 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
+@theme {
+  --breakpoint-xs: 480px;
+}
+
 /* Ocean Blue & Coral Color Palette */
 
 /* Shared palette variables required by both light and dark themes */
@@ -63,6 +67,16 @@
 
 .theme-text {
   color: var(--color-text);
+}
+
+.theme-text-secondary {
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.theme-surface-elevated {
+  background-color: var(--color-surface);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .theme-btn-primary {

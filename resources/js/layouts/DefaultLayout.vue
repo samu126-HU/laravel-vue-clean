@@ -16,7 +16,7 @@ const logout = () => {
         <!-- Header/Navigation -->
         <header class="theme-background p-4 shadow-background-bottom">
             <nav class="flex justify-between items-center">
-                <Link href="/" class="text-xl font-bold">
+                <Link href="/" class="text-2xl font-bold">
                 FindMyAisle
                 </Link>
 
@@ -48,6 +48,9 @@ const logout = () => {
                                 <li>
                                     <Link href="/contact" class="block px-4 py-2 hover:opacity-80">Contact</Link>
                                 </li>
+                                <li v-if="user && user.is_admin" class="border-t border-opacity-20 border-current">
+                                    <Link href="/admin" class="block px-4 py-2 text-blue-400 hover:opacity-80">Admin Panel</Link>
+                                </li>
                                 <li class="border-t border-opacity-20 border-current">
                                     <ThemeToggle variant="menu" />
                                 </li>
@@ -67,6 +70,9 @@ const logout = () => {
                         </li>
                         <li>
                             <Link href="/contact" class="px-3 py-2 rounded hover:underline transition-all">Kapcsolat</Link>
+                        </li>
+                        <li v-if="user && user.is_admin">
+                            <Link href="/admin" class="px-3 py-2 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all">Admin Panel</Link>
                         </li>
                         <li>
                             <ThemeToggle variant="icon" />

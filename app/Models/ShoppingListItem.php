@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ShoppingListItem extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'shopping_list_id',
         'product_id',
@@ -15,10 +18,16 @@ class ShoppingListItem extends Model
         'checked',
     ];
 
-    protected $casts = [
-        'checked' => 'boolean',
-        'quantity' => 'integer',
-    ];
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'checked' => 'boolean',
+            'quantity' => 'integer',
+        ];
+    }
 
     public function shoppingList(): BelongsTo
     {

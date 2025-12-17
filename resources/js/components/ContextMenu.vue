@@ -209,42 +209,50 @@ function getCategoryById(id) {
             </span>
           </div>
           
-          <div class="border-t border-gray-200 dark:border-gray-700"></div>
-          
-          <button
-            @click="startRename"
-            class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
-          >
-            <span class="text-lg">✏️</span>
-            <span>Rename Aisle</span>
-          </button>
-          
-          <button
-            @click="startCategorySelection"
-            class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
-          >
-            <span class="text-lg">🏷️</span>
-            <span>Set Categories</span>
-          </button>
+          <!-- Admin-only options -->
+          <template v-if="item?.isAdmin">
+            <div class="border-t border-gray-200 dark:border-gray-700"></div>
+            
+            <button
+              @click="startRename"
+              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
+            >
+              <span class="text-lg">✏️</span>
+              <span>Rename Aisle</span>
+            </button>
+            
+            <button
+              @click="startCategorySelection"
+              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
+            >
+              <span class="text-lg">🏷️</span>
+              <span>Set Categories</span>
+            </button>
 
-          <button
-            @click="startAccessPointSetting"
-            class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
-          >
-            <span class="text-lg">📍</span>
-            <span>Set Access Point</span>
-          </button>
+            <button
+              @click="startAccessPointSetting"
+              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 theme-text text-sm flex items-center gap-3 transition-colors"
+            >
+              <span class="text-lg">📍</span>
+              <span>Set Access Point</span>
+            </button>
 
-          <div class="border-t border-gray-200 dark:border-gray-700"></div>
+            <div class="border-t border-gray-200 dark:border-gray-700"></div>
+            
+            <button
+              v-if="item?.name"
+              @click="handleDelete"
+              class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 text-sm flex items-center gap-3 transition-colors"
+            >
+              <span class="text-lg">🗑️</span>
+              <span>Remove Name</span>
+            </button>
+          </template>
           
-          <button
-            v-if="item?.name"
-            @click="handleDelete"
-            class="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 text-sm flex items-center gap-3 transition-colors"
-          >
-            <span class="text-lg">🗑️</span>
-            <span>Remove Name</span>
-          </button>
+          <!-- Non-admin message -->
+          <div v-else class="px-4 py-3 text-sm theme-text-secondary text-center">
+            View only. Admin access required to edit.
+          </div>
         </div>
       </div>
     </div>

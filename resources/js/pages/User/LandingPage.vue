@@ -1,9 +1,16 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import PageHead from '../../components/PageHead.vue';
 import MapViewer from '../../components/MapViewer.vue';
 import DxfUploader from '../../components/DxfUploader.vue';
 import axios from 'axios';
+
+const page = usePage();
+const isAdmin = computed(() => {
+  const user = page.props.auth?.user;
+  return user?.is_admin === true || user?.is_admin === 1 || user?.is_admin === '1';
+});
 
 const shopMap = ref(null);
 const loading = ref(true);
@@ -16,7 +23,6 @@ onMounted(async () => {
     if (response.data.map) {
       shopMap.value = response.data.map;
       shopInfo.value = response.data.shop;
-      console.log('Loaded shop from database:', shopInfo.value);
     }
   } catch (error) {
     console.error('Error loading shop:', error);
@@ -26,6 +32,8 @@ onMounted(async () => {
 });
 
 async function handleMapLoaded(map) {
+  if (!isAdmin.value) return;
+  
   shopMap.value = map;
   
   // Save to database (access points will be calculated and saved via event)
@@ -36,20 +44,17 @@ async function handleMapLoaded(map) {
       address: null,
       map_data: map,
       aisle_names: {},
-      shelf_access_points: {} // Will be updated once calculated
+      shelf_access_points: {}
     });
     
     shopInfo.value = response.data.shop;
-    console.log('Shop saved to database:', response.data);
   } catch (error) {
     console.error('Error saving shop:', error);
   }
 }
 
 async function handleAccessPointsCalculated(accessPoints) {
-  if (!shopInfo.value) return;
-  
-  console.log('Access points calculated, saving to database:', accessPoints);
+  if (!isAdmin.value || !shopInfo.value) return;
   
   // Update local map data
   if (!shopMap.value.shelfAccessPoints) {
@@ -59,7 +64,7 @@ async function handleAccessPointsCalculated(accessPoints) {
   
   // Save to database
   try {
-    const response = await axios.put(`/api/shops/${shopInfo.value.id}`, {
+    await axios.put(`/api/shops/${shopInfo.value.id}`, {
       name: shopInfo.value.name,
       description: shopInfo.value.description,
       address: shopInfo.value.address,
@@ -68,16 +73,13 @@ async function handleAccessPointsCalculated(accessPoints) {
       aisle_categories: shopMap.value.aisleCategories || {},
       shelf_access_points: accessPoints
     });
-    console.log('Access points saved to database:', response.data);
   } catch (error) {
     console.error('Error saving access points:', error);
   }
 }
 
 async function handleAccessPointUpdated({ shelfId, accessPoint, allAccessPoints }) {
-  if (!shopInfo.value) return;
-  
-  console.log('Access point manually updated for shelf:', shelfId, accessPoint);
+  if (!isAdmin.value || !shopInfo.value) return;
   
   // Update local map data
   if (!shopMap.value.shelfAccessPoints) {
@@ -87,7 +89,7 @@ async function handleAccessPointUpdated({ shelfId, accessPoint, allAccessPoints 
   
   // Save to database
   try {
-    const response = await axios.put(`/api/shops/${shopInfo.value.id}`, {
+    await axios.put(`/api/shops/${shopInfo.value.id}`, {
       name: shopInfo.value.name,
       description: shopInfo.value.description,
       address: shopInfo.value.address,
@@ -96,14 +98,13 @@ async function handleAccessPointUpdated({ shelfId, accessPoint, allAccessPoints 
       aisle_categories: shopMap.value.aisleCategories || {},
       shelf_access_points: allAccessPoints
     });
-    console.log('Manual access point saved to database:', response.data);
   } catch (error) {
     console.error('Error saving manual access point:', error);
   }
 }
 
 async function handleAisleRenamed({ id, name, allNames }) {
-  if (!shopInfo.value) return;
+  if (!isAdmin.value || !shopInfo.value) return;
   
   // Update local map data
   if (!shopMap.value.aisleNames) {
@@ -113,7 +114,7 @@ async function handleAisleRenamed({ id, name, allNames }) {
   
   // Save to database
   try {
-    const response = await axios.put(`/api/shops/${shopInfo.value.id}`, {
+    await axios.put(`/api/shops/${shopInfo.value.id}`, {
       name: shopInfo.value.name,
       description: shopInfo.value.description,
       address: shopInfo.value.address,
@@ -121,14 +122,13 @@ async function handleAisleRenamed({ id, name, allNames }) {
       aisle_names: allNames,
       aisle_categories: shopMap.value.aisleCategories || {}
     });
-    console.log('Aisle names updated:', response.data);
   } catch (error) {
     console.error('Error updating aisle names:', error);
   }
 }
 
 async function handleAisleCategoriesUpdated({ id, categories, allCategories }) {
-  if (!shopInfo.value) return;
+  if (!isAdmin.value || !shopInfo.value) return;
   
   // Update local map data
   if (!shopMap.value.aisleCategories) {
@@ -138,7 +138,7 @@ async function handleAisleCategoriesUpdated({ id, categories, allCategories }) {
   
   // Save to database
   try {
-    const response = await axios.put(`/api/shops/${shopInfo.value.id}`, {
+    await axios.put(`/api/shops/${shopInfo.value.id}`, {
       name: shopInfo.value.name,
       description: shopInfo.value.description,
       address: shopInfo.value.address,
@@ -146,7 +146,6 @@ async function handleAisleCategoriesUpdated({ id, categories, allCategories }) {
       aisle_names: shopMap.value.aisleNames || {},
       aisle_categories: allCategories
     });
-    console.log('Aisle categories updated:', response.data);
   } catch (error) {
     console.error('Error updating aisle categories:', error);
   }
@@ -158,7 +157,8 @@ async function handleAisleCategoriesUpdated({ id, categories, allCategories }) {
 
   <div class="h-full flex flex-col p-2">
     
-    <DxfUploader @map-loaded="handleMapLoaded" />
+    <!-- Only show DXF uploader to admins -->
+    <DxfUploader v-if="isAdmin" @map-loaded="handleMapLoaded" />
 
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <p class="text-lg theme-text opacity-60">Loading shop...</p>
@@ -168,6 +168,7 @@ async function handleAisleCategoriesUpdated({ id, categories, allCategories }) {
       <MapViewer 
         :shop-map="shopMap"
         :shop-name="shopInfo?.name"
+        :admin-mode="isAdmin"
         @aisle-renamed="handleAisleRenamed"
         @aisle-categories-updated="handleAisleCategoriesUpdated"
         @access-points-calculated="handleAccessPointsCalculated"
@@ -176,7 +177,7 @@ async function handleAisleCategoriesUpdated({ id, categories, allCategories }) {
     </div>
 
     <p v-else class="text-lg theme-text opacity-60 p-4">
-      Upload a DXF file to visualize your shop floor plan
+      {{ isAdmin ? 'Upload a DXF file to visualize your shop floor plan' : 'No shop map available yet.' }}
     </p>
   </div>
 </template>

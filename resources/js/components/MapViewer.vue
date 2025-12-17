@@ -1,5 +1,7 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import Konva from 'konva';
 import {
   getColors,
@@ -28,6 +30,12 @@ import { usePathfinding } from '../composables/usePathfinding';
 import PathModeControls from './PathModeControls.vue';
 import ContextMenu from './ContextMenu.vue';
 
+const page = usePage();
+const isAdmin = computed(() => {
+  const user = page.props.auth?.user;
+  return user?.is_admin === true || user?.is_admin === 1 || user?.is_admin === '1';
+});
+
 const props = defineProps({
   shopMap: {
     type: Object,
@@ -36,6 +44,10 @@ const props = defineProps({
   shopName: {
     type: String,
     default: ''
+  },
+  adminMode: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -124,6 +136,21 @@ onUnmounted(() => {
     darkModeCleanup();
   }
   window.removeEventListener('resize', handleResize);
+});
+
+// Clear path function that has access to mainLayer
+const clearPath = () => {
+  if (mainLayer.value) {
+    resetPathMode(mainLayer.value);
+  }
+};
+
+// Expose methods and properties to parent components
+defineExpose({
+  pathMode,
+  togglePathMode,
+  selectAislesByCategory,
+  clearPath
 });
 
 function handleResize() {
@@ -225,11 +252,17 @@ function makeInteractive(shape) {
   shape.on('contextmenu', (e) => {
     e.evt.preventDefault();
     
+    // Only show context menu in admin mode
+    if (!props.adminMode) {
+      console.log('Context menu blocked - not in admin mode');
+      return;
+    }
+    
     // Don't show context menu in path mode
     if (pathMode.value) return;
     
     const shelfId = shape.attrs.data?.shelfId;
-    console.log('Context menu opened for shelf:', shelfId, shape.attrs.data);
+    console.log('Context menu opened for shelf:', shelfId, 'isAdmin:', isAdmin.value);
     contextMenu.value = {
       visible: true,
       x: e.evt.clientX,
@@ -238,7 +271,8 @@ function makeInteractive(shape) {
         shape: shape,
         data: shape.attrs.data,
         name: aisleNames.value[shelfId] || '',
-        categories: aisleCategories.value[shelfId] || []
+        categories: aisleCategories.value[shelfId] || [],
+        isAdmin: isAdmin.value
       }
     };
   });
@@ -516,9 +550,9 @@ function handleSetAccessPoint() {
     <!-- Konva Canvas Container -->
     <div ref="containerRef" class="w-full h-full"></div>
 
-    <!-- Info Panel (Top-left) -->
+    <!-- Info Panel (Top-left) - Admin Mode Only -->
     <transition name="slide-right">
-      <div v-show="showInfo" class="absolute top-20 md:top-4 left-2 md:left-4 right-2 md:right-auto theme-surface rounded-lg shadow-lg p-3 md:p-4 max-w-full md:max-w-sm z-10">
+      <div v-if="false" v-show="showInfo" class="absolute top-20 md:top-4 left-2 md:left-4 right-2 md:right-auto theme-surface rounded-lg shadow-lg p-3 md:p-4 max-w-full md:max-w-sm z-10">
         <button @click="showInfo = false" class="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-sm theme-text">✕</button>
         
         <h2 v-if="shopName" class="text-lg md:text-xl font-bold theme-text mb-2 flex items-center gap-2">
@@ -530,7 +564,7 @@ function handleSetAccessPoint() {
       </div>
     </transition>
 
-    <button v-show="!showInfo" @click="showInfo = true" class="absolute top-20 md:top-4 left-2 md:left-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl transition-shadow z-10 theme-text text-sm md:text-base font-medium">
+    <button v-if="false" v-show="!showInfo" @click="showInfo = true" class="absolute top-20 md:top-4 left-2 md:left-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl transition-shadow z-10 theme-text text-sm md:text-base font-medium">
       ℹ️ Info
     </button>
 
@@ -560,8 +594,9 @@ function handleSetAccessPoint() {
       🎛️
     </button>
 
-    <!-- Pathfinding Controls -->
+    <!-- Pathfinding Controls - Admin Mode Only -->
     <PathModeControls 
+      v-if="false"
       :path-mode="pathMode"
       :selected-aisles="selectedAisles"
       :aisle-names="aisleNames"
@@ -633,8 +668,8 @@ function handleSetAccessPoint() {
         <span class="md:hidden">💡 Pinch to zoom</span>
         <span class="text-gray-400">•</span>
         <span>Drag to pan</span>
-        <span class="text-gray-400 hidden md:inline">•</span>
-        <span class="hidden md:inline">Right-click to name</span>
+        <span v-if="isAdmin" class="text-gray-400 hidden md:inline">•</span>
+        <span v-if="isAdmin" class="hidden md:inline">Right-click to edit</span>
       </div>
     </div>
 

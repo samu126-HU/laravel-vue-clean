@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Shop extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'name',
         'description',
@@ -16,12 +19,18 @@ class Shop extends Model
         'shelf_access_points',
     ];
 
-    protected $casts = [
-        'map_data' => 'array',
-        'aisle_names' => 'array',
-        'aisle_categories' => 'array',
-        'shelf_access_points' => 'array',
-    ];
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'map_data' => 'array',
+            'aisle_names' => 'array',
+            'aisle_categories' => 'array',
+            'shelf_access_points' => 'array',
+        ];
+    }
 
     /**
      * Get the map data as an array

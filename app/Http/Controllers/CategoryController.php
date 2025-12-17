@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCategoryRequest;
+use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class CategoryController extends Controller
 {
     /**
      * Get all categories
      */
-    public function index()
+    public function index(): JsonResponse
     {
         return response()->json([
             'categories' => Category::orderBy('name')->get()
@@ -20,16 +22,9 @@ class CategoryController extends Controller
     /**
      * Create a new category
      */
-    public function store(Request $request)
+    public function store(StoreCategoryRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'icon' => 'nullable|string|max:10',
-            'color' => 'nullable|string|max:7',
-            'description' => 'nullable|string',
-        ]);
-
-        $category = Category::create($validated);
+        $category = Category::create($request->validated());
 
         return response()->json([
             'success' => true,
@@ -41,16 +36,9 @@ class CategoryController extends Controller
     /**
      * Update a category
      */
-    public function update(Request $request, Category $category)
+    public function update(UpdateCategoryRequest $request, Category $category): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'icon' => 'nullable|string|max:10',
-            'color' => 'nullable|string|max:7',
-            'description' => 'nullable|string',
-        ]);
-
-        $category->update($validated);
+        $category->update($request->validated());
 
         return response()->json([
             'success' => true,
@@ -62,7 +50,7 @@ class CategoryController extends Controller
     /**
      * Delete a category
      */
-    public function destroy(Category $category)
+    public function destroy(Category $category): JsonResponse
     {
         $category->delete();
 

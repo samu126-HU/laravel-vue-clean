@@ -2,15 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreShopRequest;
+use App\Http\Requests\UpdateShopRequest;
 use App\Models\Shop;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class ShopController extends Controller
 {
     /**
+     * Get all shops
+     */
+    public function index(): JsonResponse
+    {
+        $shops = Shop::all();
+        
+        return response()->json($shops);
+    }
+
+    /**
      * Get the latest shop map
      */
-    public function getLatest()
+    public function getLatest(): JsonResponse
     {
         $shop = Shop::latest()->first();
         
@@ -35,19 +47,9 @@ class ShopController extends Controller
     /**
      * Store a new shop map
      */
-    public function store(Request $request)
+    public function store(StoreShopRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'address' => 'nullable|string',
-            'map_data' => 'required|array',
-            'aisle_names' => 'nullable|array',
-            'aisle_categories' => 'nullable|array',
-            'shelf_access_points' => 'nullable|array',
-        ]);
-
-        $shop = Shop::create($validated);
+        $shop = Shop::create($request->validated());
 
         return response()->json([
             'success' => true,
@@ -59,35 +61,26 @@ class ShopController extends Controller
     /**
      * Get a specific shop
      */
-    public function show(Shop $shop)
+    public function show(Shop $shop): JsonResponse
     {
         return response()->json([
-            'shop' => [
-                'id' => $shop->id,
-                'name' => $shop->name,
-                'description' => $shop->description,
-                'address' => $shop->address,
-            ],
-            'map' => $shop->map_data
+            'id' => $shop->id,
+            'name' => $shop->name,
+            'description' => $shop->description,
+            'address' => $shop->address,
+            'map_data' => $shop->map_data,
+            'aisle_names' => $shop->aisle_names,
+            'aisle_categories' => $shop->aisle_categories,
+            'shelf_access_points' => $shop->shelf_access_points,
         ]);
     }
 
     /**
      * Update a shop
      */
-    public function update(Request $request, Shop $shop)
+    public function update(UpdateShopRequest $request, Shop $shop): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'address' => 'nullable|string',
-            'map_data' => 'required|array',
-            'aisle_names' => 'nullable|array',
-            'aisle_categories' => 'nullable|array',
-            'shelf_access_points' => 'nullable|array',
-        ]);
-
-        $shop->update($validated);
+        $shop->update($request->validated());
 
         return response()->json([
             'success' => true,
