@@ -207,7 +207,7 @@ const fetchShoppingLists = async () => {
     
     loading.value = true;
     try {
-        const response = await axios.get('/api/shopping-lists');
+        const response = await axios.get('/api/v1/shopping-lists');
         shoppingLists.value = response.data;
     } catch (error) {
         console.error('Failed to fetch shopping lists:', error);

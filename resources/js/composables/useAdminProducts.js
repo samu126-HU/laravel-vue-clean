@@ -14,7 +14,7 @@ export function useAdminProducts() {
   const fetchProducts = async (page = 1, search = '') => {
     loading.value = true;
     try {
-      const response = await axios.get('/api/admin/products', {
+      const response = await axios.get('/api/v1/admin/products', {
         params: { page, search }
       });
       products.value = response.data.data;
@@ -34,7 +34,7 @@ export function useAdminProducts() {
 
   const createProduct = async (productData) => {
     try {
-      const response = await axios.post('/api/admin/products', productData);
+      const response = await axios.post('/api/v1/admin/products', productData);
       return response.data;
     } catch (error) {
       console.error('Failed to create product:', error);
@@ -44,7 +44,7 @@ export function useAdminProducts() {
 
   const updateProduct = async (productId, productData) => {
     try {
-      const response = await axios.put(`/api/admin/products/${productId}`, productData);
+      const response = await axios.put(`/api/v1/admin/products/${productId}`, productData);
       return response.data;
     } catch (error) {
       console.error('Failed to update product:', error);
@@ -54,7 +54,7 @@ export function useAdminProducts() {
 
   const deleteProduct = async (productId) => {
     try {
-      await axios.delete(`/api/admin/products/${productId}`);
+      await axios.delete(`/api/v1/admin/products/${productId}`);
     } catch (error) {
       console.error('Failed to delete product:', error);
       throw error;

@@ -43,6 +43,12 @@ class AdminShopController extends Controller
 
         $shop = Shop::create($validated);
 
+        Log::info('Admin: Shop created', [
+            'shop_id' => $shop->id,
+            'shop_name' => $shop->name,
+            'admin_user_id' => auth()->id() ?? 'guest'
+        ]);
+
         return response()->json([
             'message' => 'Shop created successfully',
             'shop' => $shop
@@ -62,7 +68,16 @@ class AdminShopController extends Controller
 
     public function destroy(Shop $shop): JsonResponse
     {
+        $shopId = $shop->id;
+        $shopName = $shop->name;
+        
         $shop->delete();
+
+        Log::info('Admin: Shop deleted', [
+            'shop_id' => $shopId,
+            'shop_name' => $shopName,
+            'admin_user_id' => auth()->id() ?? 'guest'
+        ]);
 
         return response()->json([
             'message' => 'Shop deleted successfully'
@@ -72,16 +87,27 @@ class AdminShopController extends Controller
     public function uploadDxf(Request $request, Shop $shop): JsonResponse
     {
         $request->validate([
-            'dxf_file' => 'required|file|max:10240'
+            'dxf_file' => 'required|file|mimes:dxf,txt|max:10240'
         ]);
 
         try {
             $file = $request->file('dxf_file');
             
+            // Verify file extension
             $extension = strtolower($file->getClientOriginalExtension());
             if ($extension !== 'dxf') {
                 return response()->json([
                     'message' => 'Invalid file type. Please upload a .dxf file.',
+                    'error' => 'Only DXF files are allowed'
+                ], 422);
+            }
+            
+            // Verify file MIME type
+            $mimeType = $file->getMimeType();
+            $allowedMimes = ['text/plain', 'application/dxf', 'application/octet-stream'];
+            if (!in_array($mimeType, $allowedMimes)) {
+                return response()->json([
+                    'message' => 'Invalid file MIME type.',
                     'error' => 'Only DXF files are allowed'
                 ], 422);
             }
@@ -93,6 +119,12 @@ class AdminShopController extends Controller
                 'map_data' => json_encode($mapData)
             ]);
 
+            Log::info('DXF file uploaded successfully', [
+                'shop_id' => $shop->id,
+                'shop_name' => $shop->name,
+                'file_size' => $file->getSize()
+            ]);
+
             return response()->json([
                 'message' => 'DXF file uploaded and processed successfully',
                 'map_data' => $mapData
@@ -100,7 +132,8 @@ class AdminShopController extends Controller
         } catch (\Exception $e) {
             Log::error('DXF upload failed', [
                 'shop_id' => $shop->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([

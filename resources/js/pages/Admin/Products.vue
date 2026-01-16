@@ -142,7 +142,7 @@ onMounted(async () => {
 
 const loadCategories = async () => {
     try {
-        const response = await axios.get('/api/categories');
+        const response = await axios.get('/api/v1/categories');
         allCategories.value = response.data.categories || [];
     } catch (error) {
         console.error('Failed to load categories:', error);

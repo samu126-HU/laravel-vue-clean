@@ -6,6 +6,7 @@ use App\Http\Requests\StoreShopRequest;
 use App\Http\Requests\UpdateShopRequest;
 use App\Models\Shop;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ShopController extends Controller
 {
@@ -51,6 +52,12 @@ class ShopController extends Controller
     {
         $shop = Shop::create($request->validated());
 
+        \Illuminate\Support\Facades\Log::info('Shop created', [
+            'shop_id' => $shop->id,
+            'shop_name' => $shop->name,
+            'user_id' => auth()->id() ?? 'guest'
+        ]);
+
         return response()->json([
             'success' => true,
             'shop' => $shop,
@@ -82,10 +89,52 @@ class ShopController extends Controller
     {
         $shop->update($request->validated());
 
+        \Illuminate\Support\Facades\Log::info('Shop updated', [
+            'shop_id' => $shop->id,
+            'shop_name' => $shop->name,
+            'user_id' => auth()->id() ?? 'guest'
+        ]);
+
         return response()->json([
             'success' => true,
             'shop' => $shop,
             'message' => 'Shop updated successfully'
+        ]);
+    }
+
+    /**
+     * Toggle favorite shop for authenticated user
+     */
+    public function toggleFavorite(Request $request, Shop $shop): JsonResponse
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        $favoriteShops = $user->favorite_shops ?? [];
+        
+        if (in_array($shop->id, $favoriteShops)) {
+            // Remove from favorites
+            $favoriteShops = array_values(array_filter($favoriteShops, fn($id) => $id !== $shop->id));
+            $isFavorite = false;
+        } else {
+            // Add to favorites
+            $favoriteShops[] = $shop->id;
+            $isFavorite = true;
+        }
+        
+        $user->favorite_shops = $favoriteShops;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'is_favorite' => $isFavorite,
+            'favorite_shops' => $favoriteShops
         ]);
     }
 }

@@ -14,7 +14,7 @@ export function useAdminUsers() {
   const fetchUsers = async (page = 1, search = '') => {
     loading.value = true;
     try {
-      const response = await axios.get('/api/admin/users', {
+      const response = await axios.get('/api/v1/admin/users', {
         params: { page, search }
       });
       users.value = response.data.data;
@@ -34,7 +34,7 @@ export function useAdminUsers() {
 
   const updateUserRole = async (userId, isAdmin) => {
     try {
-      await axios.put(`/api/admin/users/${userId}/role`, { is_admin: isAdmin });
+      await axios.put(`/api/v1/admin/users/${userId}/role`, { is_admin: isAdmin });
     } catch (error) {
       console.error('Failed to update user role:', error);
       throw error;

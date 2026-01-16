@@ -10,7 +10,7 @@ export function useShoppingLists() {
 
     loading.value = true;
     try {
-      const response = await axios.get('/api/shopping-lists');
+      const response = await axios.get('/api/v1/shopping-lists');
       // Sort by created_at descending (newest first)
       shoppingLists.value = response.data.sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
@@ -26,7 +26,7 @@ export function useShoppingLists() {
 
   const createList = async (listData) => {
     try {
-      const response = await axios.post('/api/shopping-lists', listData);
+      const response = await axios.post('/api/v1/shopping-lists', listData);
       return response.data;
     } catch (error) {
       console.error('Failed to create list:', error);
@@ -36,7 +36,7 @@ export function useShoppingLists() {
 
   const updateList = async (listId, listData) => {
     try {
-      const response = await axios.put(`/api/shopping-lists/${listId}`, listData);
+      const response = await axios.put(`/api/v1/shopping-lists/${listId}`, listData);
       return response.data;
     } catch (error) {
       console.error('Failed to update list:', error);
@@ -46,7 +46,7 @@ export function useShoppingLists() {
 
   const deleteList = async (listId) => {
     try {
-      await axios.delete(`/api/shopping-lists/${listId}`);
+      await axios.delete(`/api/v1/shopping-lists/${listId}`);
     } catch (error) {
       console.error('Failed to delete list:', error);
       throw error;

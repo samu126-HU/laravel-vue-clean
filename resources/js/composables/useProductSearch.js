@@ -25,12 +25,12 @@ export function useProductSearch() {
     searchTimeout = setTimeout(async () => {
       searchingProducts.value = true;
       try {
-        const response = await axios.get('/api/products', {
+        const response = await axios.get('/api/v1/products', {
           params: {
             search: productSearch.value
           }
         });
-        searchResults.value = response.data;
+        searchResults.value = response.data.data || response.data;
       } catch (error) {
         console.error('Failed to search products:', error);
       } finally {

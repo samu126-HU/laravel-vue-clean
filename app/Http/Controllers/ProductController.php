@@ -20,7 +20,9 @@ class ProductController extends Controller
             });
         }
 
-        $products = $query->limit(20)->get();
+        // Add pagination for better performance
+        $perPage = $request->input('per_page', 20);
+        $products = $query->paginate($perPage);
 
         return response()->json($products);
     }

@@ -15,7 +15,7 @@ export function useAdminStatistics() {
   const fetchStatistics = async () => {
     loading.value = true;
     try {
-      const response = await axios.get('/api/admin/statistics');
+      const response = await axios.get('/api/v1/admin/statistics');
       statistics.value = response.data;
     } catch (error) {
       console.error('Failed to fetch statistics:', error);

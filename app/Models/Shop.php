@@ -47,4 +47,20 @@ class Shop extends Model
     {
         $this->map_data = $mapData;
     }
+
+    /**
+     * Scope to eager load products relationship
+     */
+    public function scopeWithProducts($query)
+    {
+        return $query->with('products');
+    }
+
+    /**
+     * Get the products for this shop
+     */
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
 }

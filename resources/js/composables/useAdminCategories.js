@@ -14,7 +14,7 @@ export function useAdminCategories() {
   const fetchCategories = async (page = 1, search = '') => {
     loading.value = true;
     try {
-      const response = await axios.get('/api/admin/categories', {
+      const response = await axios.get('/api/v1/admin/categories', {
         params: { page, search }
       });
       categories.value = response.data.data;
@@ -34,7 +34,7 @@ export function useAdminCategories() {
 
   const createCategory = async (categoryData) => {
     try {
-      const response = await axios.post('/api/admin/categories', categoryData);
+      const response = await axios.post('/api/v1/admin/categories', categoryData);
       return response.data;
     } catch (error) {
       console.error('Failed to create category:', error);
@@ -44,7 +44,7 @@ export function useAdminCategories() {
 
   const updateCategory = async (categoryId, categoryData) => {
     try {
-      const response = await axios.put(`/api/admin/categories/${categoryId}`, categoryData);
+      const response = await axios.put(`/api/v1/admin/categories/${categoryId}`, categoryData);
       return response.data;
     } catch (error) {
       console.error('Failed to update category:', error);
@@ -54,7 +54,7 @@ export function useAdminCategories() {
 
   const deleteCategory = async (categoryId) => {
     try {
-      await axios.delete(`/api/admin/categories/${categoryId}`);
+      await axios.delete(`/api/v1/admin/categories/${categoryId}`);
     } catch (error) {
       console.error('Failed to delete category:', error);
       throw error;

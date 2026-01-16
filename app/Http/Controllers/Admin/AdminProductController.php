@@ -35,6 +35,13 @@ class AdminProductController extends Controller
     {
         $product = Product::create($request->validated());
 
+        \Illuminate\Support\Facades\Log::info('Admin: Product created', [
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'category_id' => $product->category_id,
+            'admin_user_id' => auth()->id() ?? 'guest'
+        ]);
+
         return response()->json([
             'message' => 'Product created successfully',
             'product' => $product->load('category')
@@ -53,7 +60,16 @@ class AdminProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
+        $productId = $product->id;
+        $productName = $product->name;
+        
         $product->delete();
+
+        \Illuminate\Support\Facades\Log::info('Admin: Product deleted', [
+            'product_id' => $productId,
+            'product_name' => $productName,
+            'admin_user_id' => auth()->id() ?? 'guest'
+        ]);
 
         return response()->json([
             'message' => 'Product deleted successfully'

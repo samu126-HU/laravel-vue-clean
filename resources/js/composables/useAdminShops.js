@@ -14,7 +14,7 @@ export function useAdminShops() {
   const fetchShops = async (page = 1, search = '') => {
     loading.value = true;
     try {
-      const response = await axios.get('/api/admin/shops', {
+      const response = await axios.get('/api/v1/admin/shops', {
         params: { page, search }
       });
       shops.value = response.data.data;
@@ -34,7 +34,7 @@ export function useAdminShops() {
 
   const createShop = async (shopData) => {
     try {
-      const response = await axios.post('/api/admin/shops', shopData);
+      const response = await axios.post('/api/v1/admin/shops', shopData);
       return response.data;
     } catch (error) {
       console.error('Failed to create shop:', error);
@@ -44,7 +44,7 @@ export function useAdminShops() {
 
   const updateShop = async (shopId, shopData) => {
     try {
-      const response = await axios.put(`/api/admin/shops/${shopId}`, shopData);
+      const response = await axios.put(`/api/v1/admin/shops/${shopId}`, shopData);
       return response.data;
     } catch (error) {
       console.error('Failed to update shop:', error);
@@ -54,7 +54,7 @@ export function useAdminShops() {
 
   const deleteShop = async (shopId) => {
     try {
-      await axios.delete(`/api/admin/shops/${shopId}`);
+      await axios.delete(`/api/v1/admin/shops/${shopId}`);
     } catch (error) {
       console.error('Failed to delete shop:', error);
       throw error;

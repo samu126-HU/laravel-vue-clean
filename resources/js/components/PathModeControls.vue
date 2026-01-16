@@ -33,7 +33,7 @@ const showCategoryMenu = ref(false);
 onMounted(async () => {
   // Load categories
   try {
-    const response = await axios.get('/api/categories');
+    const response = await axios.get('/api/v1/categories');
     categories.value = response.data.categories;
   } catch (error) {
     console.error('Error loading categories:', error);

@@ -1,47 +1,113 @@
 <template>
-  <div class="flex-1 theme-surface">
-    <div class="md:max-w-[85vw] mx-auto px-2 md:py-6 md:px-4">
-      <div class="flex justify-between items-center my-3 md:mb-6">
-        <h1 class="text-2xl font-bold theme-text">Bevásárlólistáim</h1>
-        <button v-if="user" @click="openCreateModal" class="theme-btn-primary px-4 py-2 rounded-lg">
-          + Új lista
+  <div class="flex-1 min-h-screen theme-background theme-text">
+    <div class="md:max-w-[85vw] mx-auto px-4 md:py-12 md:px-4">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center my-6 md:mb-12 gap-4">
+            <div class="mb-12">
+                <h1 class="text-4xl md:text-5xl font-bold mb-4 bg-linear-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
+                    Bevásárlólistáim
+                </h1>
+                <p class="text-lg opacity-80">
+                    Kezeld és szerkeszd a bevásárlólistáidat egy helyen
+                </p>
+            </div>
+        <button v-if="user" @click="openCreateModal" 
+          class="theme-btn-primary px-6 py-3 rounded-lg font-medium hover:opacity-90 active:opacity-80 active:scale-95 transform transition-all flex items-center gap-2 shadow-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Új lista
         </button>
       </div>
 
-      <div v-if="!user" class="text-center py-8 theme-text opacity-60">
-        Kérlek jelentkezz be a bevásárlólisták megtekintéséhez.
+      <div v-if="!user" class="text-center py-16">
+        <div class="max-w-md mx-auto theme-surface rounded-xl p-8 shadow-lg">
+          <svg class="w-16 h-16 mx-auto mb-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          <p class="text-lg opacity-60">Kérlek jelentkezz be a bevásárlólisták megtekintéséhez.</p>
+        </div>
       </div>
 
-      <div v-else-if="loading" class="text-center py-8 theme-text">Töltés...</div>
-
-      <div v-else-if="shoppingLists.length === 0" class="text-center py-8 theme-text opacity-60">
-        Még nincsenek bevásárlólistáid. Hozz létre egyet!
+      <div v-else-if="loading" class="text-center py-16 theme-text">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-current"></div>
       </div>
 
-      <div v-else class="grid md:grid-cols-2 gap-3 md:gap-6">
-        <div v-for="list in shoppingLists" :key="list.id" class="theme-background rounded-lg shadow p-3 md:p-6">
-          <div class="flex justify-between items-start mb-2 md:mb-4">
-            <div>
-              <h2
-                class="max-w-[65vw] md:max-w-[25vw] xl:max-w-[15vw] 2xl:max-w-[20vw] truncate text-xl font-bold theme-text">
-                {{ list.name }}
-              </h2>
-              <p class="text-sm theme-text opacity-60">
-                {{ list.items.length }} termék, {{ checkedItemsCount(list) }} megvásárolva
-              </p>
+      <div v-else-if="shoppingLists.length === 0" class="text-center py-16">
+        <div class="max-w-md mx-auto theme-surface rounded-xl p-8 shadow-lg">
+          <svg class="w-16 h-16 mx-auto mb-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <p class="text-lg opacity-60 mb-4">Még nincsenek bevásárlólistáid.</p>
+          <button @click="openCreateModal" class="theme-btn-primary px-6 py-3 rounded-lg font-medium active:scale-95 transform transition-all">
+            Hozz létre egyet!
+          </button>
+        </div>
+      </div>
+
+      <div v-else class="grid md:grid-cols-2 gap-6">
+        <div v-for="(list, index) in shoppingLists" :key="list.id" 
+          class="theme-surface rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex items-start gap-3 flex-1">
+              <div :class="[
+                'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
+                index % 4 === 0 ? 'bg-blue-500 bg-opacity-20' : '',
+                index % 4 === 1 ? 'bg-green-500 bg-opacity-20' : '',
+                index % 4 === 2 ? 'bg-purple-500 bg-opacity-20' : '',
+                index % 4 === 3 ? 'bg-orange-500 bg-opacity-20' : ''
+              ]">
+                <svg :class="[
+                  'w-6 h-6',
+                  index % 4 === 0 ? 'text-blue-500' : '',
+                  index % 4 === 1 ? 'text-green-500' : '',
+                  index % 4 === 2 ? 'text-purple-500' : '',
+                  index % 4 === 3 ? 'text-orange-500' : ''
+                ]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h2 class="text-xl font-bold theme-text truncate">
+                  {{ list.name }}
+                </h2>
+                <div class="flex items-center gap-4 text-sm theme-text opacity-60 mt-1">
+                  <span class="flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    {{ list.items.length }} termék
+                  </span>
+                  <span class="flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {{ checkedItemsCount(list) }} kész
+                  </span>
+                </div>
+              </div>
             </div>
 
             <!-- Desktop: Show buttons separately -->
             <div class="hidden xl:flex gap-2">
-              <button @click="openAddItemsModal(list)" class="theme-btn-primary px-3 py-1 rounded-lg text-sm">
-                + Termékek
+              <button @click="openAddItemsModal(list)" 
+                class="theme-btn-primary px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 active:opacity-80 active:scale-95 transform transition-all flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Termékek
               </button>
               <button @click="editList(list)"
-                class="px-3 py-1 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 transition text-sm">
-                Szerkesztés
+                class="px-3 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:bg-opacity-10 hover:bg-gray-500 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Szerkeszt
               </button>
               <button @click="handleDeleteList(list.id)"
-                class="px-3 py-1 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 transition text-sm text-red-600">
+                class="px-3 py-2 border border-red-500 border-opacity-50 rounded-lg text-red-600 hover:bg-red-500 hover:bg-opacity-10 active:bg-red-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
                 Törlés
               </button>
             </div>
@@ -49,7 +115,7 @@
             <!-- Mobile: Dropdown menu -->
             <div class="xl:hidden relative">
               <button @click="toggleDropdown(list.id)"
-                class="px-3 py-1 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 transition text-sm">
+                class="px-3 py-1 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm">
                 ⋮
               </button>
               <div v-if="openDropdownId === list.id"
@@ -57,19 +123,19 @@
                 <button @click="
                   openAddItemsModal(list);
                 closeDropdown();
-                " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 transition text-sm">
+                " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 transition text-sm">
                   + Termékek
                 </button>
                 <button @click="
                   editList(list);
                 closeDropdown();
-                " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 transition text-sm">
+                " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 transition text-sm">
                   ✎ Szerkesztés
                 </button>
                 <button @click="
                   handleDeleteList(list.id);
                 closeDropdown();
-                " class="w-full text-left px-4 py-2 text-red-600 hover:opacity-70 transition text-sm">
+                " class="w-full text-left px-4 py-2 text-red-600 hover:opacity-70 active:bg-red-500 active:bg-opacity-20 transition text-sm">
                   ✕ Törlés
                 </button>
               </div>
@@ -130,10 +196,10 @@
 
       <div class="flex justify-end gap-3 mt-6">
         <button type="button" @click="closeCreateModal"
-          class="px-4 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 transition">
+          class="px-4 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
           Mégse
         </button>
-        <button type="button" @click="saveList" class="theme-btn-primary px-4 py-2 rounded-lg">
+        <button type="button" @click="saveList" class="theme-btn-primary px-4 py-2 rounded-lg active:scale-95 transform transition-all">
           {{ editingList ? "Mentés" : "Létrehozás" }}
         </button>
       </div>
@@ -151,7 +217,7 @@
           class="flex-1 px-4 py-2 theme-surface border border-current border-opacity-20 rounded-lg theme-text focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Termék keresése..." />
         <button @click="handleBackButton"
-          class="px-6 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 transition">
+          class="px-6 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
           Vissza
         </button>
       </div>
@@ -182,7 +248,7 @@
               </div>
               <div class="flex items-center gap-2 ml-auto">
                 <button @click="decrementQuantity(product.id)"
-                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 transition">
+                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
                   −
                 </button>
                 <input v-model.number="productQuantities[product.id]" @focus="showSearchResults = true" @input="e => {
@@ -191,11 +257,11 @@
                 }" type="number" min="1" max="999"
                   class="w-12 px-2 py-1 text-center theme-background border border-current border-opacity-20 rounded theme-text focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                 <button @click="incrementQuantity(product.id)"
-                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 transition">
+                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
                   +
                 </button>
                 <button @click="addProductToList(product)"
-                  class="md:ml-2  px-2.5 py-0.5 flex items-center justify-center theme-btn-primary text-lg rounded-lg">
+                  class="md:ml-2  px-2.5 py-0.5 flex items-center justify-center theme-btn-primary text-lg rounded-lg active:scale-95 transform transition-all">
                   <span class="hidden md:inline">Hozzáadás</span>
                   <span class="inline md:hidden">+</span>
                 </button>
@@ -222,7 +288,7 @@
               </div>
               <div class="ml-auto flex items-center gap-2">
                 <button @click="decrementItemQuantity(item)"
-                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 transition">
+                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
                   −
                 </button>
                 <input v-model.number="item.quantity" @change="updateItemQuantity(item)" @input="e => {
@@ -231,11 +297,11 @@
                 }" type="number" min="1" max="999"
                   class="w-12 px-2 py-1 text-center theme-background border border-current border-opacity-20 rounded theme-text focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                 <button @click="incrementItemQuantity(item)"
-                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 transition">
+                  class="w-8 h-8 flex items-center justify-center border border-current border-opacity-20 rounded theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
                   +
                 </button>
                 <button @click="handleRemoveItem(selectedListForItems.id, item.id)"
-                  class="ml-2 w-8 h-8 flex items-center justify-center border border-red-500 border-opacity-50 rounded text-red-600 hover:bg-red-500 hover:bg-opacity-10 transition">
+                  class="ml-2 w-8 h-8 flex items-center justify-center border border-red-500 border-opacity-50 rounded text-red-600 hover:bg-red-500 hover:bg-opacity-10 active:bg-red-500 active:bg-opacity-20 active:scale-95 transform transition-all">
                   ×
                 </button>
               </div>

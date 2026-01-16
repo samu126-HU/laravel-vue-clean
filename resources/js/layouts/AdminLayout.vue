@@ -1,5 +1,5 @@
 <template>
-  <div class="theme-background min-h-screen flex">
+  <div class="theme-background h-1/1 flex">
     <!-- Sidebar -->
     <aside class="theme-surface w-64 flex-shrink-0 border-r border-gray-700">
       <div class="p-6">
@@ -76,10 +76,8 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-auto">
-      <div class="max-w-7xl mx-auto p-8">
-        <slot />
-      </div>
+    <main class="w-[calc(100%-16rem)] p-6 overflow-auto">
+      <slot />
     </main>
   </div>
 </template>

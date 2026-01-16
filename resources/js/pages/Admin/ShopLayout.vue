@@ -1,6 +1,6 @@
 <template>
   <AdminLayout>
-    <div class="h-[calc(100vh-4rem)]">
+    <div class="h-full">
       <div class="flex items-center justify-between mb-4">
         <div>
           <Link href="/admin/shops" class="text-blue-400 hover:underline mb-2 inline-block">← Back to Shops</Link>
@@ -262,7 +262,7 @@ onMounted(async () => {
 
 const loadCategories = async () => {
   try {
-    const response = await axios.get('/api/categories');
+    const response = await axios.get('/api/v1/categories');
     categories.value = response.data.categories;
   } catch (error) {
     console.error('Error loading categories:', error);
@@ -271,7 +271,7 @@ const loadCategories = async () => {
 
 const loadShop = async () => {
   try {
-    const response = await axios.get(`/api/shops/${props.shopId}`);
+    const response = await axios.get(`/api/v1/shops/${props.shopId}`);
     shop.value = response.data;
     
     console.log('Shop loaded:', response.data);
@@ -318,7 +318,7 @@ const uploadFile = async () => {
       uploadProgress.value = 75; // Parsing done
       
       // Save to database
-      const response = await axios.put(`/api/admin/shops/${props.shopId}`, {
+      const response = await axios.put(`/api/v1/admin/shops/${props.shopId}`, {
         map_data: mapData,
         aisle_names: shop.value?.aisle_names || {},
         aisle_categories: shop.value?.aisle_categories || {},
@@ -395,7 +395,7 @@ const saveChanges = async (silent = false) => {
     }
 
     console.log('Saving shop data:', updateData);
-    const response = await axios.put(`/api/admin/shops/${props.shopId}`, updateData);
+    const response = await axios.put(`/api/v1/admin/shops/${props.shopId}`, updateData);
     console.log('Save response:', response.data);
     
     // Update shop object with saved data
