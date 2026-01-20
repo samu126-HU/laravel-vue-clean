@@ -9,6 +9,8 @@
   --breakpoint-xs: 480px;
 }
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Ocean Blue & Coral Color Palette */
 
 /* Shared palette variables required by both light and dark themes */

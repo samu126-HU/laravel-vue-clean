@@ -40,19 +40,20 @@ onMounted(async () => {
           Welcome to FindMyAisle
         </h1>
         <p class="text-xl opacity-80 max-w-2xl mx-auto">
-          Navigate stores with ease, create smart shopping lists, and never lose track of products again. 
+          Navigate stores with ease, create smart shopping lists, and never lose track of products again.
           Your intelligent shopping companion.
         </p>
       </div>
 
       <!-- Quick Actions -->
       <div class="grid md:grid-cols-3 gap-6 mb-16">
-        <Link href="/shops" 
+        <Link href="/shops"
           class="theme-surface rounded-xl p-6 hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-lg active:shadow-xl">
           <div class="flex items-center mb-4">
             <div class="w-12 h-12 bg-blue-500 bg-opacity-20 rounded-lg flex items-center justify-center mr-4">
               <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
             <h3 class="text-xl font-semibold">Browse Shops</h3>
@@ -60,24 +61,39 @@ onMounted(async () => {
           <p class="opacity-75">Explore available stores and their layouts</p>
         </Link>
 
-        <Link href="/shopping-lists" 
+        <Link href="/shopping-lists"
           class="theme-surface rounded-xl p-6 hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-lg active:shadow-xl">
           <div class="flex items-center mb-4">
             <div class="w-12 h-12 bg-green-500 bg-opacity-20 rounded-lg flex items-center justify-center mr-4">
               <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </div>
             <h3 class="text-xl font-semibold">Shopping Lists</h3>
           </div>
           <p class="opacity-75">Create and manage your shopping lists</p>
         </Link>
+
+        <Link href="/shops"
+          class="theme-surface rounded-xl p-6 hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-lg active:shadow-xl">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 bg-purple-500 bg-opacity-20 rounded-lg flex items-center justify-center mr-4">
+              <svg class="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold">Favourites</h3>
+          </div>
+          <p class="opacity-75">Quick access to your favourite shops</p>
+        </Link>
       </div>
 
       <!-- Stats Section -->
       <div class="theme-surface rounded-xl p-8 shadow-lg">
         <h2 class="text-2xl font-bold mb-6 text-center">Platform Statistics</h2>
-        
+
         <div v-if="loading" class="text-center py-8">
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-current"></div>
         </div>
@@ -103,7 +119,8 @@ onMounted(async () => {
         <div class="theme-surface rounded-xl p-6 shadow-lg">
           <h3 class="text-xl font-semibold mb-3 flex items-center">
             <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
             Interactive Store Maps
           </h3>
@@ -123,7 +140,8 @@ onMounted(async () => {
         <div class="theme-surface rounded-xl p-6 shadow-lg">
           <h3 class="text-xl font-semibold mb-3 flex items-center">
             <svg class="w-6 h-6 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             Quick Search
           </h3>
@@ -133,7 +151,8 @@ onMounted(async () => {
         <div class="theme-surface rounded-xl p-6 shadow-lg">
           <h3 class="text-xl font-semibold mb-3 flex items-center">
             <svg class="w-6 h-6 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Save Time
           </h3>
@@ -145,15 +164,15 @@ onMounted(async () => {
       <div v-if="isAdmin" class="mt-12 theme-surface rounded-xl p-6 shadow-lg border-l-4 border-blue-500">
         <h3 class="text-xl font-semibold mb-3">Admin Quick Access</h3>
         <div class="flex flex-wrap gap-4">
-          <Link href="/admin" 
+          <Link href="/admin"
             class="px-4 py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 rounded-lg transition-colors active:scale-95 transform">
             Admin Panel
           </Link>
-          <Link href="/admin/shops" 
+          <Link href="/admin/shops"
             class="px-4 py-2 bg-purple-500 hover:bg-purple-600 active:bg-purple-700 rounded-lg transition-colors active:scale-95 transform">
             Manage Shops
           </Link>
-          <Link href="/admin/products" 
+          <Link href="/admin/products"
             class="px-4 py-2 bg-green-500 hover:bg-green-600 active:bg-green-700 rounded-lg transition-colors active:scale-95 transform">
             Manage Products
           </Link>
