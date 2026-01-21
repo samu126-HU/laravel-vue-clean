@@ -48,10 +48,22 @@ const props = defineProps({
   adminMode: {
     type: Boolean,
     default: false
+  },
+  shoppingLists: {
+    type: Array,
+    default: () => []
+  },
+  selectedShoppingListId: {
+    type: [String, Number],
+    default: ''
+  },
+  loadingShoppingLists: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated', 'access-points-calculated', 'access-point-updated']);
+const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated', 'access-points-calculated', 'access-point-updated', 'update:selectedShoppingListId', 'highlight-aisles']);
 
 const strokeWidths = {
   lines: 10,
@@ -80,7 +92,25 @@ const searchQuery = ref('');
 const searchResults = ref([]);
 const categories = ref([]);
 const settingAccessPointFor = ref(null);
+const sidebarOpen = ref(false);
+const minZoomLevel = ref(0.1);
 let darkModeCleanup = null;
+
+// Touch handling for mobile
+let lastTouchDistance = null;
+let lastTouchCenter = null;
+let firstTouchPosition = null; // Screen coordinates
+let firstTouchStagePosition = null; // Stage coordinates
+let debugMarker = null;
+
+const selectedList = computed(() => {
+  if (!props.selectedShoppingListId) return null;
+  return props.shoppingLists.find(list => list.id == props.selectedShoppingListId);
+});
+
+const showShoppingLists = computed(() => {
+  return !props.adminMode && props.shoppingLists && props.shoppingLists.length > 0;
+});
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 5;
@@ -168,6 +198,9 @@ function initKonva() {
   // Setup zoom
   setupZoom(stage.value, zoom, { ZOOM_MIN, ZOOM_MAX });
 
+  // Setup mobile touch events
+  setupMobileGestures();
+
   if (props.shopMap) {
     renderMap(props.shopMap);
   }
@@ -209,6 +242,9 @@ function renderMap(map) {
   mainLayer.value.batchDraw();
   const scale = fitStageToMap(stage.value, containerRef.value, bounds, padding);
   zoom.value = scale;
+  
+  // Set minimum zoom to the initial fitted zoom level
+  minZoomLevel.value = scale;
   
   // Initialize pathfinder and calculate access points if needed
   const calculatedAccessPoints = initPathfinder(map, 20);
@@ -307,7 +343,7 @@ function zoomIn() {
 }
 
 function zoomOut() {
-  stageZoomOut(stage.value, zoom, ZOOM_STEP, ZOOM_MIN);
+  stageZoomOut(stage.value, zoom, ZOOM_STEP, minZoomLevel.value);
 }
 
 function resetView() {
@@ -356,8 +392,6 @@ function selectAislesByCategory(categoryId) {
       }
     }
   });
-
-  console.log(`Auto-selected ${selectedCount} aisles with category ${categoryId}`);
   
   if (selectedCount === 0) {
     const category = categories.value.find(c => c.id === categoryId);
@@ -499,6 +533,152 @@ function handleSetCategory(categoryIds) {
   }
 }
 
+function handleShoppingListChange(event) {
+  const value = event.target.value;
+  emit('update:selectedShoppingListId', value);
+}
+
+function handleHighlightAisles() {
+  emit('highlight-aisles');
+  sidebarOpen.value = false;
+}
+
+function setupMobileGestures() {
+  if (!stage.value) return;
+
+  const stageEl = stage.value.container();
+
+  // Capture first touch position
+  stageEl.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      // Save first touch position in screen coordinates
+      const rect = stage.value.container().getBoundingClientRect();
+      firstTouchPosition = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      };
+      
+      // Convert to stage coordinates for zoom center
+      const stageX = (e.touches[0].clientX - rect.left - stage.value.x()) / stage.value.scaleX();
+      const stageY = (e.touches[0].clientY - rect.top - stage.value.y()) / stage.value.scaleY();
+      
+      firstTouchStagePosition = {
+        x: stageX,
+        y: stageY
+      };
+      
+      // Create debug marker in stage coordinates
+      if (debugMarker) {
+        debugMarker.destroy();
+      }
+      
+      debugMarker = new Konva.Circle({
+        x: stageX,
+        y: stageY,
+        radius: 30 / stage.value.scaleX(), // Scale radius with zoom
+        fill: 'red',
+        opacity: 0.7,
+        listening: false
+      });
+      
+      mainLayer.value.add(debugMarker);
+      mainLayer.value.batchDraw();
+      
+      console.log('First touch at screen:', firstTouchPosition, 'stage:', firstTouchStagePosition);
+    }
+    if (e.touches.length > 1) {
+      e.preventDefault();
+      // Disable dragging during pinch zoom
+      stage.value.draggable(false);
+      console.log('Second touch detected, zoom mode active, dragging disabled');
+    }
+  }, { passive: false });
+
+  stageEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+  stageEl.addEventListener('touchend', handleTouchEnd);
+}
+
+function getDistance(touch1, touch2) {
+  const dx = touch1.clientX - touch2.clientX;
+  const dy = touch1.clientY - touch2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getCenter(touch1, touch2) {
+  return {
+    x: (touch1.clientX + touch2.clientX) / 2,
+    y: (touch1.clientY + touch2.clientY) / 2
+  };
+}
+
+function handleTouchMove(e) {
+  if (!stage.value) return;
+
+  // Pinch zoom with two fingers
+  if (e.touches.length === 2) {
+    e.preventDefault();
+
+    const touch1 = e.touches[0];
+    const touch2 = e.touches[1];
+    const currentDistance = getDistance(touch1, touch2);
+
+    // Initialize lastTouchDistance on first two-finger move
+    if (lastTouchDistance === null) {
+      lastTouchDistance = currentDistance;
+      return;
+    }
+
+    if (firstTouchStagePosition !== null && firstTouchPosition !== null) {
+      // Calculate zoom
+      const scale = currentDistance / lastTouchDistance;
+      const oldScale = stage.value.scaleX();
+      const newScale = Math.max(minZoomLevel.value, Math.min(ZOOM_MAX, oldScale * scale));
+
+      // Get current rect
+      const rect = stage.value.container().getBoundingClientRect();
+      
+      // Screen position where first touch happened
+      const screenX = firstTouchPosition.x - rect.left;
+      const screenY = firstTouchPosition.y - rect.top;
+
+      // Calculate new stage position to keep the point fixed
+      const newPos = {
+        x: screenX - firstTouchStagePosition.x * newScale,
+        y: screenY - firstTouchStagePosition.y * newScale
+      };
+
+      console.log('Zoom:', { oldScale, newScale, screenX, screenY, stagePoint: firstTouchStagePosition, newPos });
+
+      stage.value.scale({ x: newScale, y: newScale });
+      stage.value.position(newPos);
+      zoom.value = newScale;
+    }
+
+    lastTouchDistance = currentDistance;
+  }
+}
+
+function handleTouchEnd() {
+  // Re-enable dragging
+  if (stage.value) {
+    stage.value.draggable(true);
+  }
+  
+  lastTouchDistance = null;
+  lastTouchCenter = null;
+  firstTouchPosition = null;
+  firstTouchStagePosition = null;
+  
+  // Remove debug marker
+  if (debugMarker) {
+    debugMarker.destroy();
+    debugMarker = null;
+    mainLayer.value.batchDraw();
+  }
+  
+  console.log('Touch ended, cleared state, dragging enabled');
+}
+
 function handleSetAccessPoint() {
   if (!contextMenu.value.item) return;
   
@@ -546,51 +726,179 @@ function handleSetAccessPoint() {
 </script>
 
 <template>
-  <div class="relative w-full h-full theme-background rounded-sm overflow-hidden">
+  <div class="fixed inset-0 lg:relative lg:w-full lg:h-full theme-background overflow-hidden z-50 lg:z-auto" style="height: 100vh; height: 100dvh;">
     <!-- Konva Canvas Container -->
-    <div ref="containerRef" class="w-full h-full"></div>
+    <div ref="containerRef" class="w-full h-full" style="touch-action: none;"></div>
 
-    <!-- Info Panel (Top-left) - Admin Mode Only -->
+    <!-- Mobile Menu Button (Top-left) -->
+    <button 
+      @click="sidebarOpen = true"
+      class="lg:hidden absolute top-4 left-4 theme-surface rounded-lg shadow-lg p-3 z-20 hover:shadow-xl transition-shadow active:scale-95"
+    >
+      <svg class="w-6 h-6 theme-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div
+      v-if="sidebarOpen"
+      @click="sidebarOpen = false"
+      class="lg:hidden fixed inset-0 bg-black/50 z-30"
+    ></div>
+
+    <!-- Mobile Sidebar -->
+    <div 
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      class="lg:hidden fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] theme-surface shadow-2xl z-40 transform transition-transform duration-300 ease-in-out overflow-y-auto"
+    >
+      <div class="p-4">
+        <!-- Close Button -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold theme-text">Menu</h2>
+          <button 
+            @click="sidebarOpen = false"
+            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <svg class="w-6 h-6 theme-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Shop Info -->
+        <div v-if="shopName" class="mb-6">
+          <h3 class="text-lg font-bold theme-text mb-2 flex items-center gap-2">
+            <span>📍</span>
+            <span>{{ shopName }}</span>
+          </h3>
+          <div class="text-sm theme-text space-y-1">
+            <p><span class="font-semibold">Floor Plan</span></p>
+            <p><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
+          </div>
+        </div>
+
+        <!-- Shopping List Section -->
+        <div v-if="showShoppingLists" class="mb-6">
+          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">Shopping List</h3>
+          <p class="text-xs theme-text opacity-60 mb-3">Select a list to highlight aisles</p>
+          
+          <select 
+            :value="selectedShoppingListId"
+            @change="handleShoppingListChange"
+            class="w-full theme-surface theme-text px-3 py-2 rounded-lg border theme-border mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="">Select a shopping list...</option>
+            <option v-for="list in shoppingLists" :key="list.id" :value="list.id">
+              {{ list.name }} ({{ list.items.length }} items)
+            </option>
+          </select>
+
+          <button 
+            @click="handleHighlightAisles"
+            :disabled="!selectedShoppingListId || loadingShoppingLists"
+            class="w-full theme-btn-primary py-2.5 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm"
+          >
+            {{ loadingShoppingLists ? 'Loading...' : 'Highlight Aisles' }}
+          </button>
+
+          <!-- Selected List Info -->
+          <div v-if="selectedList" class="mt-3 theme-surface rounded-lg p-3 border theme-border">
+            <h4 class="font-semibold theme-text text-xs mb-2">{{ selectedList.name }}</h4>
+            <p class="text-xs theme-text opacity-60 mb-2">{{ selectedList.items.length }} items</p>
+            <div class="max-h-32 overflow-y-auto space-y-1">
+              <div v-for="item in selectedList.items" :key="item.id" class="text-xs theme-text opacity-80 flex items-start gap-1">
+                <span class="opacity-50">•</span>
+                <span class="truncate">{{ item.name }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zoom Controls -->
+        <div class="mb-6">
+          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">Zoom Controls</h3>
+          <div class="flex gap-2">
+            <button 
+              @click="zoomIn(); sidebarOpen = false"
+              class="flex-1 theme-surface border theme-border rounded-lg py-3 font-semibold theme-text hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
+            >
+              + Zoom In
+            </button>
+            <button 
+              @click="zoomOut(); sidebarOpen = false"
+              class="flex-1 theme-surface border theme-border rounded-lg py-3 font-semibold theme-text hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
+            >
+              − Zoom Out
+            </button>
+          </div>
+          <button 
+            @click="resetView(); sidebarOpen = false"
+            class="w-full mt-2 theme-surface border theme-border rounded-lg py-3 font-semibold theme-text hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
+          >
+            ⟲ Reset View
+          </button>
+          <div class="mt-3 text-center">
+            <div class="text-sm font-medium theme-text">
+              Current Zoom: {{ (zoom * 100).toFixed(0) }}%
+            </div>
+          </div>
+        </div>
+
+        <!-- Help -->
+        <div class="border-t theme-border pt-4">
+          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">Tips</h3>
+          <div class="text-sm theme-text space-y-2 opacity-75">
+            <p>💡 Pinch to zoom on mobile</p>
+            <p>👆 Drag to pan around the map</p>
+            <p>🔍 Use search to find specific aisles</p>
+            <p v-if="isAdmin">✏️ Right-click to edit (desktop)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Panel (Top-left) - Desktop Only, Admin Mode Only -->
     <transition name="slide-right">
-      <div v-if="false" v-show="showInfo" class="absolute top-20 md:top-4 left-2 md:left-4 right-2 md:right-auto theme-surface rounded-lg shadow-lg p-3 md:p-4 max-w-full md:max-w-sm z-10">
+      <div v-if="false" v-show="showInfo" class="hidden lg:block absolute top-4 left-4 theme-surface rounded-lg shadow-lg p-4 max-w-sm z-10">
         <button @click="showInfo = false" class="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-sm theme-text">✕</button>
         
-        <h2 v-if="shopName" class="text-lg md:text-xl font-bold theme-text mb-2 flex items-center gap-2">
+        <h2 v-if="shopName" class="text-lg font-bold theme-text mb-2 flex items-center gap-2">
           <span>📍</span>
           <span class="truncate">{{ shopName }}</span>
         </h2>
-        <h3 class="text-xs md:text-sm font-semibold theme-text opacity-70 mb-1">Floor Plan</h3>
-        <p class="text-xs md:text-sm theme-text"><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
+        <h3 class="text-sm font-semibold theme-text opacity-70 mb-1">Floor Plan</h3>
+        <p class="text-sm theme-text"><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
       </div>
     </transition>
 
-    <button v-if="false" v-show="!showInfo" @click="showInfo = true" class="absolute top-20 md:top-4 left-2 md:left-4 theme-surface rounded-lg shadow-lg px-3 py-2 md:px-4 hover:shadow-xl transition-shadow z-10 theme-text text-sm md:text-base font-medium">
+    <button v-if="false" v-show="!showInfo" @click="showInfo = true" class="hidden lg:block absolute top-4 left-4 theme-surface rounded-lg shadow-lg px-4 py-2 hover:shadow-xl transition-shadow z-10 theme-text font-medium">
       ℹ️ Info
     </button>
 
-    <!-- Zoom Controls (Bottom-right, Google Maps style) -->
+    <!-- Zoom Controls (Bottom-right, Desktop) -->
     <transition name="slide-left">
-      <div v-show="showControls" class="absolute bottom-16 md:bottom-24 right-2 md:right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
-        <button @click="zoomIn" class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-all touch-manipulation">
+      <div v-show="showControls" class="hidden lg:block absolute bottom-24 right-4 theme-surface rounded-lg shadow-lg overflow-hidden z-10">
+        <button @click="zoomIn" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-all">
           +
         </button>
-        <button @click="zoomOut" class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-all touch-manipulation">
+        <button @click="zoomOut" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 border-b border-gray-200 dark:border-gray-700 theme-text text-xl font-bold transition-all">
           −
         </button>
-        <button @click="resetView" class="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 theme-text text-lg transition-all touch-manipulation" title="Reset view">
+        <button @click="resetView" class="w-10 h-10 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 theme-text text-lg transition-all" title="Reset view">
           ⟲
         </button>
       </div>
     </transition>
 
-    <!-- Zoom Level Indicator -->
-    <div v-show="showControls" class="absolute bottom-4 right-2 md:right-4 theme-surface rounded-lg shadow-lg px-2 py-1 md:px-3 md:py-2 z-10">
+    <!-- Zoom Level Indicator (Desktop) -->
+    <div v-show="showControls" class="hidden lg:block absolute bottom-4 right-4 theme-surface rounded-lg shadow-lg px-3 py-2 z-10">
       <div class="text-xs font-medium theme-text">
         {{ (zoom * 100).toFixed(0) }}%
       </div>
     </div>
 
-    <button v-show="!showControls" @click="showControls = true" class="absolute bottom-4 right-2 md:right-4 theme-surface rounded-full shadow-lg w-10 h-10 md:w-12 md:h-12 flex items-center justify-center hover:shadow-xl active:scale-95 transition-all z-10 text-lg md:text-xl touch-manipulation">
+    <button v-show="!showControls" @click="showControls = true" class="hidden lg:flex absolute bottom-4 right-4 theme-surface rounded-full shadow-lg w-12 h-12 items-center justify-center hover:shadow-xl active:scale-95 transition-all z-10 text-xl">
       🎛️
     </button>
 
@@ -608,8 +916,8 @@ function handleSetAccessPoint() {
     />
 
     <!-- Search Box (Top-center, Google Maps style) -->
-    <div class="absolute top-4 left-2 right-2 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 z-10">
-      <div class="theme-surface rounded-full shadow-lg px-3 py-2 md:px-5 md:py-3 flex items-center gap-2 md:gap-3 w-full md:min-w-[400px] md:w-auto">
+    <div class="absolute top-4 left-20 right-4 lg:left-1/2 lg:right-auto lg:transform lg:-translate-x-1/2 z-10">
+      <div class="theme-surface rounded-full shadow-lg px-3 py-2 md:px-5 md:py-3 flex items-center gap-2 md:gap-3 w-full lg:min-w-[400px] lg:w-auto">
         <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
@@ -661,15 +969,14 @@ function handleSetAccessPoint() {
       </div>
     </div>
 
-    <!-- Help Hint (Bottom-center) -->
-    <div class="hidden sm:block absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-3 md:px-4 py-2 z-10">
-      <div class="text-xs theme-text flex items-center gap-2 md:gap-3">
-        <span class="hidden md:inline">💡 Scroll to zoom</span>
-        <span class="md:hidden">💡 Pinch to zoom</span>
+    <!-- Help Hint (Bottom-center, Desktop only) -->
+    <div class="hidden lg:block absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-4 py-2 z-10">
+      <div class="text-xs theme-text flex items-center gap-3">
+        <span>💡 Scroll to zoom</span>
         <span class="text-gray-400">•</span>
         <span>Drag to pan</span>
-        <span v-if="isAdmin" class="text-gray-400 hidden md:inline">•</span>
-        <span v-if="isAdmin" class="hidden md:inline">Right-click to edit</span>
+        <span v-if="isAdmin" class="text-gray-400">•</span>
+        <span v-if="isAdmin">Right-click to edit</span>
       </div>
     </div>
 

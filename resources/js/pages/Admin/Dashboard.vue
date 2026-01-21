@@ -77,9 +77,32 @@
       </div>
 
       <!-- Recent Users -->
-      <div class="theme-surface p-6 rounded-lg border border-gray-700">
+      <div class="theme-surface p-4 md:p-6 rounded-lg border border-gray-700">
         <h2 class="text-xl font-bold theme-text mb-4">Recent Users</h2>
-        <div class="overflow-x-auto">
+        
+        <!-- Mobile View -->
+        <div class="md:hidden space-y-3">
+          <div 
+            v-for="user in statistics.recent_users" 
+            :key="user.id"
+            class="theme-surface-elevated p-4 rounded-lg border border-gray-700"
+          >
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="theme-text font-medium">{{ user.name }}</h3>
+              <span 
+                class="px-2 py-1 rounded text-xs font-medium"
+                :class="user.is_admin ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'"
+              >
+                {{ user.is_admin ? 'Admin' : 'User' }}
+              </span>
+            </div>
+            <p class="theme-text-secondary text-sm mb-1">{{ user.email }}</p>
+            <p class="theme-text-secondary text-xs">Joined: {{ formatDate(user.created_at) }}</p>
+          </div>
+        </div>
+
+        <!-- Desktop View -->
+        <div class="hidden md:block overflow-x-auto">
           <table class="w-full">
             <thead class="border-b border-gray-700">
               <tr>

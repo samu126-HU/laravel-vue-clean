@@ -1,12 +1,48 @@
 <template>
-  <div class="theme-background h-1/1 flex">
+  <div class="theme-background min-h-screen flex">
+    <!-- Mobile Header -->
+    <div class="lg:hidden fixed top-0 left-0 right-0 z-40 theme-surface border-b border-gray-700 px-4 py-3 flex items-center justify-between">
+      <h1 class="text-xl font-bold theme-text">Admin Panel</h1>
+      <button
+        @click="sidebarOpen = true"
+        class="p-2 rounded-lg theme-surface-elevated hover:opacity-80 transition-opacity"
+        aria-label="Open menu"
+      >
+        <svg class="w-6 h-6 theme-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Overlay -->
+    <div
+      v-if="sidebarOpen"
+      @click="sidebarOpen = false"
+      class="lg:hidden fixed inset-0 bg-black/50 z-40"
+    ></div>
+
     <!-- Sidebar -->
-    <aside class="theme-surface w-64 flex-shrink-0 border-r border-gray-700">
+    <aside 
+      class="theme-surface border-r border-gray-700 fixed lg:static inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+    >
       <div class="p-6">
-        <h1 class="text-2xl font-bold theme-text mb-8">Admin Panel</h1>
+        <div class="flex items-center justify-between mb-8">
+          <h1 class="text-2xl font-bold theme-text">Admin Panel</h1>
+          <button
+            @click="sidebarOpen = false"
+            class="lg:hidden p-2 rounded-lg hover:bg-gray-700/50 transition-colors"
+            aria-label="Close menu"
+          >
+            <svg class="w-5 h-5 theme-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
         <nav class="space-y-2">
           <Link
             :href="route('admin.dashboard')"
+            @click="sidebarOpen = false"
             class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             :class="{ 'active': $page.url === '/admin' || $page.url === '/admin/' }"
           >
@@ -17,6 +53,7 @@
           </Link>
 
           <Link
+            @click="sidebarOpen = false"
             :href="route('admin.categories')"
             class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             :class="{ 'active': $page.url.startsWith('/admin/categories') }"
@@ -28,6 +65,7 @@
           </Link>
 
           <Link
+            @click="sidebarOpen = false"
             :href="route('admin.shops')"
             class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             :class="{ 'active': $page.url.startsWith('/admin/shops') }"
@@ -39,6 +77,7 @@
           </Link>
 
           <Link
+            @click="sidebarOpen = false"
             :href="route('admin.products')"
             class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             :class="{ 'active': $page.url.startsWith('/admin/products') }"
@@ -50,6 +89,7 @@
           </Link>
 
           <Link
+            @click="sidebarOpen = false"
             :href="route('admin.users')"
             class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             :class="{ 'active': $page.url.startsWith('/admin/users') }"
@@ -63,6 +103,7 @@
           <div class="pt-6 mt-6 border-t border-gray-700">
             <Link
               href="/"
+              @click="sidebarOpen = false"
               class="nav-link flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,14 +117,17 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="w-[calc(100%-16rem)] p-6 overflow-auto">
+    <main class="flex-1 p-4 lg:p-6 overflow-auto pt-16 lg:pt-6">
       <slot />
     </main>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
+
+const sidebarOpen = ref(false);
 
 const route = (name) => {
   const routes = {

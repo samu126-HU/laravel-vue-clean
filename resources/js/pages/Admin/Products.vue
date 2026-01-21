@@ -1,9 +1,9 @@
 <template>
     <AdminLayout>
         <div>
-            <div class="flex justify-between items-center mb-8">
-                <h1 class="text-3xl font-bold theme-text">Products</h1>
-                <button @click="openCreateModal" class="theme-btn-primary px-4 py-2 rounded-lg flex items-center gap-2">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <h1 class="text-2xl sm:text-3xl font-bold theme-text">Products</h1>
+                <button @click="openCreateModal" class="theme-btn-primary px-4 py-2 rounded-lg flex items-center gap-2 w-full sm:w-auto justify-center">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
@@ -25,7 +25,34 @@
                 <div v-else-if="products.length === 0" class="p-8 text-center theme-text-secondary">
                     No products found
                 </div>
-                <table v-else class="w-full">
+                
+                <!-- Mobile View -->
+                <div v-else class="md:hidden">
+                    <div 
+                        v-for="product in products" 
+                        :key="product.id"
+                        class="p-4 border-b border-gray-700/50 hover:bg-gray-800/30"
+                    >
+                        <h3 class="theme-text font-medium mb-1">{{ product.name }}</h3>
+                        <p class="theme-text-secondary text-sm mb-1">
+                            Category: {{ product.category ? product.category.name : 'None' }}
+                        </p>
+                        <p class="theme-text-secondary text-sm mb-3">{{ product.description || 'No description' }}</p>
+                        <div class="flex gap-2">
+                            <button @click="openEditModal(product)"
+                                class="flex-1 px-3 py-2 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 transition-colors text-sm">
+                                Edit
+                            </button>
+                            <button @click="handleDelete(product)"
+                                class="flex-1 px-3 py-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors text-sm">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Desktop View -->
+                <table v-if="!loading && products.length > 0" class="hidden md:table w-full">
                     <thead class="border-b border-gray-700 theme-surface-elevated">
                         <tr>
                             <th class="text-left px-6 py-4 theme-text font-medium">Name</th>
@@ -70,9 +97,9 @@
             </div>
 
             <!-- Edit/Create Modal -->
-            <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
                 @click.self="closeModal">
-                <div class="theme-surface rounded-lg p-6 w-full max-w-2xl border border-gray-700">
+                <div class="theme-surface rounded-lg p-4 sm:p-6 w-full max-w-2xl border border-gray-700">
                     <h2 class="text-2xl font-bold theme-text mb-4">
                         {{ editingProduct ? 'Edit Product' : 'Create Product' }}
                     </h2>

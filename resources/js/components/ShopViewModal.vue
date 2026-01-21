@@ -75,8 +75,8 @@
 
                     <!-- Map View -->
                     <div v-else-if="currentView === 'map'" class="h-full relative flex">
-                        <!-- Sidebar -->
-                        <div class="w-80 theme-background border-r border-gray-700 flex flex-col z-20 overflow-hidden">
+                        <!-- Sidebar (Desktop Only) -->
+                        <div class="hidden lg:flex w-80 theme-background border-r border-gray-700 flex-col z-20 overflow-hidden">
                             <!-- Shop Info Section -->
                             <div class="p-4 border-b border-gray-700">
                                 <button @click="currentView = 'info'"
@@ -139,7 +139,18 @@
 
                         <!-- Map Container -->
                         <div class="flex-1 relative">
-                            <MapViewer v-if="shopMap" :shop-map="shopMap" :shop-name="shop.name" :admin-mode="false" ref="mapViewerRef" />
+                            <MapViewer 
+                                v-if="shopMap" 
+                                :shop-map="shopMap" 
+                                :shop-name="shop.name" 
+                                :admin-mode="false" 
+                                :shopping-lists="shoppingLists"
+                                :selected-shopping-list-id="selectedShoppingListId"
+                                :loading-shopping-lists="loading"
+                                @update:selectedShoppingListId="selectedShoppingListId = $event"
+                                @highlight-aisles="handleAutoSelect"
+                                ref="mapViewerRef" 
+                            />
                         </div>
                     </div>
                 </div>
@@ -178,7 +189,7 @@ const mapViewerRef = ref(null);
 
 const selectedList = computed(() => {
     if (!selectedShoppingListId.value) return null;
-    return shoppingLists.value.find(list => list.id === selectedShoppingListId.value);
+    return shoppingLists.value.find(list => list.id == selectedShoppingListId.value);
 });
 
 const hasMap = computed(() => {
@@ -217,7 +228,15 @@ const fetchShoppingLists = async () => {
 };
 
 const handleAutoSelect = () => {
-    if (!selectedList.value || !mapViewerRef.value) return;
+    if (!selectedList.value) {
+        alert('Please select a shopping list first');
+        return;
+    }
+    
+    if (!mapViewerRef.value) {
+        alert('Map viewer is not ready. Please try again.');
+        return;
+    }
     
     // Extract unique category IDs from shopping list items
     const categoryIds = new Set();
@@ -233,7 +252,7 @@ const handleAutoSelect = () => {
     }
     
     // Enable path mode if not already enabled
-    if (!mapViewerRef.value.pathMode) {
+    if (!mapViewerRef.value.pathMode.value) {
         mapViewerRef.value.togglePathMode();
     }
     

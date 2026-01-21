@@ -80,6 +80,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/shops/{shop}', [ShopController::class, 'show']);
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/products', [ProductController::class, 'index']);
+    
+    // User statistics
+    Route::get('/stats', [ShopController::class, 'stats']);
 
     // User favorite shops
     Route::middleware('auth:sanctum')->group(function () {

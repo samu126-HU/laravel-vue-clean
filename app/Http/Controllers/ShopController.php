@@ -137,4 +137,30 @@ class ShopController extends Controller
             'favorite_shops' => $favoriteShops
         ]);
     }
+
+    /**
+     * Get user statistics
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        $stats = [
+            'totalShops' => Shop::count(),
+            'userShoppingLists' => 0,
+            'userCheckedItems' => 0
+        ];
+
+        if ($user) {
+            // Count user's shopping lists
+            $stats['userShoppingLists'] = $user->shoppingLists()->count();
+            
+            // Count checked items across all user's shopping lists
+            $stats['userCheckedItems'] = \App\Models\ShoppingListItem::whereHas('shoppingList', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })->where('checked', true)->count();
+        }
+
+        return response()->json($stats);
+    }
 }

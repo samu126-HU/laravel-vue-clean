@@ -24,7 +24,46 @@
         <div v-else-if="users.length === 0" class="p-8 text-center theme-text-secondary">
           No users found
         </div>
-        <table v-else class="w-full">
+        
+        <!-- Mobile View -->
+        <div v-else class="md:hidden">
+          <div 
+            v-for="user in users" 
+            :key="user.id"
+            class="p-4 border-b border-gray-700/50 hover:bg-gray-800/30"
+          >
+            <div class="flex justify-between items-start mb-2">
+              <div class="flex-1 min-w-0">
+                <h3 class="theme-text font-medium truncate">{{ user.name }}</h3>
+                <p class="theme-text-secondary text-sm truncate">{{ user.email }}</p>
+              </div>
+              <span 
+                class="px-3 py-1 rounded-full text-xs font-medium ml-2 flex-shrink-0"
+                :class="user.is_admin ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'"
+              >
+                {{ user.is_admin ? 'Admin' : 'User' }}
+              </span>
+            </div>
+            <p class="theme-text-secondary text-xs mb-3">Joined: {{ formatDate(user.created_at) }}</p>
+            <button
+              v-if="user.is_admin"
+              @click="toggleRole(user, false)"
+              class="w-full px-3 py-2 bg-orange-500/20 text-orange-400 rounded hover:bg-orange-500/30 transition-colors text-sm"
+            >
+              Revoke Admin
+            </button>
+            <button
+              v-else
+              @click="toggleRole(user, true)"
+              class="w-full px-3 py-2 bg-green-500/20 text-green-400 rounded hover:bg-green-500/30 transition-colors text-sm"
+            >
+              Make Admin
+            </button>
+          </div>
+        </div>
+
+        <!-- Desktop View -->
+        <table v-if="!loading && users.length > 0" class="hidden md:table w-full">
           <thead class="border-b border-gray-700 theme-surface-elevated">
             <tr>
               <th class="text-left px-6 py-4 theme-text font-medium">Name</th>

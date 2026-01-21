@@ -36,7 +36,7 @@ const logout = () => {
                             </button>
 
                             <div id="mobile-nav-menu-1"
-                                class="hidden absolute right-0 top-full mt-2 w-44 theme-background theme-text rounded-lg shadow-lg z-50 ring-1 ring-black ring-opacity-5 text-lg"
+                                class="hidden absolute right-0 top-full mt-2 w-44 theme-background theme-text rounded-lg shadow-lg z-50 ring-1 ring-gray-700 ring-opacity-5 text-lg"
                                 role="menu" aria-labelledby="mobile-nav-btn-1">
                                 <ul>
                                     <li>
@@ -52,14 +52,7 @@ const logout = () => {
                                     </li>
                                     <li>
                                         <Link href="/contact" class="block px-4 py-2 hover:opacity-80">{{ $t('Contact')
-                                            }}</Link>
-                                    </li>
-                                    <li v-if="user && user.is_admin" class="border-t border-opacity-20 border-current">
-                                        <Link href="/admin" class="block px-4 py-2 text-blue-400 hover:opacity-80">{{
-                                            $t('Admin Panel') }}</Link>
-                                    </li>
-                                    <li class="px-2 py-2 border-t border-opacity-20 border-current">
-                                        <ThemeToggle variant="menu" />
+                                        }}</Link>
                                     </li>
                                 </ul>
                             </div>
@@ -82,20 +75,38 @@ const logout = () => {
                                 role="menu" aria-labelledby="mobile-nav-btn-2">
                                 <ul>
                                     <li v-if="!user">
-                                        <Link href="/login" class="block px-4 py-2 hover:opacity-80">{{ $t('Login') }}
+                                        <Link href="/login" class="block px-4 py-2">{{ $t('Login') }}
                                         </Link>
                                     </li>
                                     <li v-if="!user">
-                                        <Link href="/register" class="block px-4 py-2 hover:opacity-80">{{
+                                        <Link href="/register" class="block px-4 py-2">{{
                                             $t('Register') }}</Link>
                                     </li>
                                     <li v-if="user" class="border-b border-gray-700">
-                                        <span class="block px-4 py-2 opacity-70">{{ user.name }}</span>
+                                        <span class="block px-4 py-2">{{ user.name }}</span>
+                                    </li>
+                                    <Link v-if="user && user.is_admin" href="/admin"
+                                        onclick="document.getElementById('desktop-profile-menu')?.classList.add('hidden'); document.getElementById('desktop-profile-btn')?.setAttribute('aria-expanded', 'false')"
+                                        class="h-full flex items-center gap-3 px-2 py-2 text-blue-400 hover:bg-blue-500 hover:bg-opacity-10 transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        <span>{{ $t('Admin Panel') }}</span>
+                                    </Link>
+                                    <li class="px-2 py-2">
+                                        <ThemeToggle variant="menu" />
+                                    </li>
+                                    <li class="px-2 py-2 border-b border-gray-700">
+                                        <LanguageSwitcher />
                                     </li>
                                     <li v-if="user">
-                                        <button @click="logout"
-                                            class="w-full text-left block px-4 py-2 hover:opacity-80">{{ $t('Logout')
-                                            }}</button>
+                                        <button @click="logout" class="w-full text-left block px-4 py-2 ">{{
+                                            $t('Logout')
+                                        }}
+                                        </button>
                                     </li>
                                 </ul>
                             </div>
@@ -108,7 +119,7 @@ const logout = () => {
                         </li>
                         <li>
                             <Link href="/shops" class="px-3 py-2 rounded hover:underline transition-all">{{ $t('Shops')
-                                }}</Link>
+                            }}</Link>
                         </li>
                         <li>
                             <Link href="/shopping-lists" class="px-3 py-2 rounded hover:underline transition-all">
@@ -162,6 +173,7 @@ const logout = () => {
 
                                     <!-- Admin Panel -->
                                     <Link v-if="user && user.is_admin" href="/admin"
+                                        onclick="document.getElementById('desktop-profile-menu')?.classList.add('hidden'); document.getElementById('desktop-profile-btn')?.setAttribute('aria-expanded', 'false')"
                                         class="h-full flex items-center gap-3 px-4 py-2.5 text-blue-400 hover:bg-blue-500 hover:bg-opacity-10 transition-colors">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

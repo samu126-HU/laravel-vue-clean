@@ -84,6 +84,22 @@ class ShoppingListController extends Controller
             'quantity' => 'integer|min:1',
         ]);
 
+        // Check if item with same product_id already exists in the list
+        if (!empty($validated['product_id'])) {
+            $existingItem = $shoppingList->items()
+                ->where('product_id', $validated['product_id'])
+                ->first();
+
+            if ($existingItem) {
+                // Item already exists, increment quantity
+                $existingItem->quantity += $validated['quantity'] ?? 1;
+                $existingItem->save();
+                $existingItem->load('product.category');
+                return response()->json($existingItem);
+            }
+        }
+
+        // Create new item if it doesn't exist
         $item = $shoppingList->items()->create($validated);
         $item->load('product.category');
         return response()->json($item, 201);

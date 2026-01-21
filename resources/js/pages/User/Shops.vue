@@ -135,6 +135,12 @@ const closeModal = () => {
 
 onMounted(() => {
     fetchShops();
+    
+    // Check for fav parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('fav') === '1') {
+        showOnlyFavorites.value = true;
+    }
 });
 </script>
 
