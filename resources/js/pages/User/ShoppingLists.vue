@@ -1,13 +1,40 @@
 <template>
+  <Toast />
   <div class="flex-1 min-h-screen theme-background theme-text">
     <div class="md:max-w-[85vw] mx-auto px-4 md:py-12 md:px-4">
+      <!-- Success Message -->
+      <transition name="slide-down">
+        <div v-if="completionMessage.show" class="mt-6 mb-6">
+          <div class="theme-surface rounded-lg p-4 border border-green-500 border-opacity-30 shadow-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold theme-text">{{ $t('Shopping Complete!') }}</div>
+                <div v-if="completionMessage.listName" class="text-sm theme-text opacity-70">
+                  {{ completionMessage.listName }} • {{ completionMessage.itemsCount }} {{ $t('items checked off') }}
+                </div>
+              </div>
+              <button @click="dismissCompletionMessage" class="flex-shrink-0 p-1 hover:bg-gray-500 hover:bg-opacity-20 rounded transition-colors">
+                <svg class="w-5 h-5 theme-text opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
       <div class="flex flex-col md:flex-row md:justify-between md:items-center my-6 md:mb-12 gap-4">
             <div class="mb-12">
                 <h1 class="text-4xl md:text-5xl font-bold mb-4 bg-linear-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
-                    Bevásárlólistáim
+                    {{ $t('My Shopping Lists') }}
                 </h1>
                 <p class="text-lg opacity-80">
-                    Kezeld és szerkeszd a bevásárlólistáidat egy helyen
+                    {{ $t('Manage and edit your shopping lists in one place') }}
                 </p>
             </div>
         <button v-if="user" @click="openCreateModal" 
@@ -15,7 +42,7 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Új lista
+          {{ $t('New List') }}
         </button>
       </div>
 
@@ -24,7 +51,7 @@
           <svg class="w-16 h-16 mx-auto mb-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
-          <p class="text-lg opacity-60">Kérlek jelentkezz be a bevásárlólisták megtekintéséhez.</p>
+          <p class="text-lg opacity-60">{{ $t('Please log in to view shopping lists.') }}</p>
         </div>
       </div>
 
@@ -37,9 +64,9 @@
           <svg class="w-16 h-16 mx-auto mb-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          <p class="text-lg opacity-60 mb-4">Még nincsenek bevásárlólistáid.</p>
+          <p class="text-lg opacity-60 mb-4">{{ $t("You don't have any shopping lists yet.") }}</p>
           <button @click="openCreateModal" class="theme-btn-primary px-6 py-3 rounded-lg font-medium active:scale-95 transform transition-all">
-            Hozz létre egyet!
+            {{ $t('Create one!') }}
           </button>
         </div>
       </div>
@@ -75,13 +102,13 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
-                    {{ list.items.length }} termék
+                    {{ list.items.length }} {{ $t('products') }}
                   </span>
                   <span class="flex items-center gap-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    {{ checkedItemsCount(list) }} kész
+                    {{ checkedItemsCount(list) }} {{ $t('done') }}
                   </span>
                 </div>
               </div>
@@ -94,21 +121,21 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                Termékek
+                {{ $t('+ Products') }}
               </button>
               <button @click="editList(list)"
                 class="px-3 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:bg-opacity-10 hover:bg-gray-500 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                Szerkeszt
+                {{ $t('Edit') }}
               </button>
               <button @click="handleDeleteList(list.id)"
                 class="px-3 py-2 border border-red-500 border-opacity-50 rounded-lg text-red-600 hover:bg-red-500 hover:bg-opacity-10 active:bg-red-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Törlés
+                {{ $t('Delete') }}
               </button>
             </div>
 
@@ -124,19 +151,19 @@
                   openAddItemsModal(list);
                 closeDropdown();
                 " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 transition text-sm">
-                  + Termékek
+                  {{ $t('+ Products') }}
                 </button>
                 <button @click="
                   editList(list);
                 closeDropdown();
                 " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 transition text-sm">
-                  ✎ Szerkesztés
+                  {{ $t('Edit') }}
                 </button>
                 <button @click="
                   handleDeleteList(list.id);
                 closeDropdown();
                 " class="w-full text-left px-4 py-2 text-red-600 hover:opacity-70 active:bg-red-500 active:bg-opacity-20 transition text-sm">
-                  ✕ Törlés
+                  {{ $t('Delete') }}
                 </button>
               </div>
             </div>
@@ -145,7 +172,7 @@
           <!-- Collapse/Expand Button -->
           <button v-if="list.items.length > 0" @click="toggleItemsList(list.id)"
             class="w-full text-left py-2 theme-text opacity-70 hover:opacity-100 transition flex items-center gap-2">
-            <span class="text-sm">{{ isListExpanded(list.id) ? "🞃" : "🞂" }} Termékek megjelenítése</span>
+            <span class="text-sm">{{ isListExpanded(list.id) ? "🥣" : "🥢" }} {{ $t('Show Products') }}</span>
           </button>
 
           <div v-if="list.items.length > 0 && isListExpanded(list.id)" class="space-y-2">
@@ -182,25 +209,25 @@
     @click.self="closeModal">
     <div class="theme-background rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
       <h2 class="text-xl font-bold mb-4 theme-text">
-        {{ editingList ? "Lista szerkesztése" : "Új lista" }}
+        {{ editingList ? $t('Edit List') : $t('New List') }}
       </h2>
 
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium mb-2 theme-text">Név</label>
+          <label class="block text-sm font-medium mb-2 theme-text">{{ $t('Name') }}</label>
           <input v-model="listForm.name" type="text"
             class="w-full px-3 py-2 theme-background border border-current border-opacity-20 rounded-lg theme-text focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Pl. Heti bevásárlás" @keyup.enter="saveList" />
+            :placeholder="$t('Search shops...')" @keyup.enter="saveList" />
         </div>
       </div>
 
       <div class="flex justify-end gap-3 mt-6">
         <button type="button" @click="closeCreateModal"
           class="px-4 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
-          Mégse
+          {{ $t('Cancel') }}
         </button>
         <button type="button" @click="saveList" class="theme-btn-primary px-4 py-2 rounded-lg active:scale-95 transform transition-all">
-          {{ editingList ? "Mentés" : "Létrehozás" }}
+          {{ editingList ? $t('Save') : $t('Create') }}
         </button>
       </div>
     </div>
@@ -215,10 +242,10 @@
         <input v-model="productSearch" @input="searchProducts" @focus="handleSearchFocus" @blur="handleSearchBlur"
           type="text"
           class="flex-1 px-4 py-2 theme-surface border border-current border-opacity-20 rounded-lg theme-text focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Termék keresése..." />
+          :placeholder="$t('Product search')" />
         <button @click="handleBackButton"
           class="px-6 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all">
-          Vissza
+          {{ $t('Back') }}
         </button>
       </div>
     </div>
@@ -229,12 +256,12 @@
 
         <!-- Search Results (when focused and searching) -->
         <div v-if="showSearchResults && productSearch.trim().length >= 2">
-          <h3 class="text-lg font-bold mb-4 theme-text">Találatok</h3>
+          <h3 class="text-lg font-bold mb-4 theme-text">{{ $t('Results') }}</h3>
           <div v-if="searchingProducts" class="text-center py-8 theme-text opacity-60">
-            Keresés...
+            {{ $t('Searching...') }}
           </div>
           <div v-else-if="searchResults.length === 0" class="text-center py-8 theme-text opacity-60">
-            Nincs találat
+            {{ $t('No results') }}
           </div>
 
           <div v-else class="space-y-3">
@@ -262,7 +289,7 @@
                 </button>
                 <button @click="addProductToList(product)"
                   class="md:ml-2  px-2.5 py-0.5 flex items-center justify-center theme-btn-primary text-lg rounded-lg active:scale-95 transform transition-all">
-                  <span class="hidden md:inline">Hozzáadás</span>
+                  <span class="hidden md:inline">{{ $t('Add') }}</span>
                   <span class="inline md:hidden">+</span>
                 </button>
               </div>
@@ -273,9 +300,9 @@
         <!-- Already Added Items (when not focused or search empty) -->
 
         <div v-else>
-          <h3 class="text-lg font-bold mb-4 theme-text">Hozzáadott termékek</h3>
+          <h3 class="text-lg font-bold mb-4 theme-text">{{ $t('Added Products') }}</h3>
           <div v-if="selectedListForItems.items.length === 0" class="text-center py-8 theme-text opacity-60">
-            Még nincsenek termékek ezen a listán
+            {{ $t('No products on this list yet') }}
           </div>
           <div v-else class="space-y-3">
             <div v-for="item in selectedListForItems.items" :key="item.id"
@@ -316,6 +343,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { usePage } from "@inertiajs/vue3";
+import { trans } from 'laravel-vue-i18n';
+import Toast from '../../Components/Toast.vue';
+import { useToast } from '../../composables/useToast';
 import { useShoppingLists } from "@/composables/useShoppingLists";
 import { useShoppingListItems } from "@/composables/useShoppingListItems";
 import { useProductSearch } from "@/composables/useProductSearch";
@@ -323,6 +353,22 @@ import { useShoppingListModals } from "@/composables/useShoppingListModals";
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
+
+// Completion message state
+const completionMessage = ref({
+  show: false,
+  listName: '',
+  itemsCount: 0
+});
+
+const dismissCompletionMessage = () => {
+  completionMessage.value.show = false;
+  // Clean URL
+  const url = new URL(window.location);
+  url.searchParams.delete('completed');
+  url.searchParams.delete('items');
+  window.history.replaceState({}, '', url);
+};
 
 // Mobile dropdown menu
 const openDropdownId = ref(null);
@@ -420,6 +466,9 @@ const {
   closeAddItemsModal: closeItemsModal,
 } = useShoppingListModals();
 
+// Toast notifications
+const { success, error } = useToast();
+
 // Fetch lists and update selected list
 const refreshLists = async () => {
   await fetchShoppingLists(user.value?.id);
@@ -441,8 +490,10 @@ const saveList = async () => {
     
     if (editingList.value) {
       savedList = await updateList(editingList.value.id, listForm);
+      success(trans('List updated successfully!'));
     } else {
       savedList = await createList(listForm);
+      success(trans('List created successfully!'));
     }
     await refreshLists();
     closeCreateModal();
@@ -456,6 +507,7 @@ const saveList = async () => {
     }
   } catch (error) {
     console.error("Failed to save list:", error);
+    error(trans('Failed to save list'));
   }
 };
 
@@ -466,12 +518,14 @@ const editList = (list) => {
 
 // Delete list with confirmation
 const handleDeleteList = async (listId) => {
-  if (!confirm("Biztosan törölni szeretnéd ezt a listát?")) return;
+  if (!confirm(trans('Are you sure you want to delete this list?'))) return;
   try {
     await deleteList(listId);
     await refreshLists();
+    success(trans('List deleted successfully!'));
   } catch (error) {
     console.error("Failed to delete list:", error);
+    error(trans('Failed to delete list'));
   }
 };
 
@@ -519,8 +573,10 @@ const addProductToList = async (product) => {
     });
     await refreshLists();
     resetQuantity(product.id);
+    success(trans('Item added to list!'));
   } catch (error) {
     console.error("Failed to add product:", error);
+    error(trans('Failed to add item'));
   }
 };
 
@@ -545,8 +601,10 @@ const updateItemQuantity = async (item) => {
     await updateItem(selectedListForItems.value.id, item.id, {
       quantity: item.quantity,
     });
+    success(trans('Quantity updated!'));
   } catch (error) {
     console.error("Failed to update item quantity:", error);
+    error(trans('Failed to update quantity'));
   }
 };
 
@@ -555,8 +613,10 @@ const handleRemoveItem = async (listId, itemId) => {
   try {
     await removeItem(listId, itemId);
     await refreshLists();
+    success(trans('Item removed from list!'));
   } catch (error) {
     console.error("Failed to remove item:", error);
+    error(trans('Failed to remove item'));
   }
 };
 
@@ -578,5 +638,46 @@ watch(searchResults, (results) => {
 
 onMounted(() => {
   refreshLists();
+  
+  // Check for completion message from URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  const completedListId = urlParams.get('completed');
+  const itemsCount = urlParams.get('items');
+  
+  if (completedListId && itemsCount) {
+    // Wait for lists to load, then show completion message
+    setTimeout(() => {
+      const completedList = shoppingLists.value.find(list => list.id == completedListId);
+      if (completedList) {
+        completionMessage.value = {
+          show: true,
+          listName: completedList.name,
+          itemsCount: parseInt(itemsCount)
+        };
+        
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => {
+          dismissCompletionMessage();
+        }, 10000);
+      }
+    }, 500);
+  }
 });
 </script>
+
+<style scoped>
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-down-enter-from {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+.slide-down-leave-to {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+</style>

@@ -141,4 +141,27 @@ class ShoppingListController extends Controller
         $item->delete();
         return response()->json(['message' => 'Item removed successfully']);
     }
+
+    /**
+     * Mark multiple items as completed
+     */
+    public function completeItems(Request $request, ShoppingList $shoppingList): JsonResponse
+    {
+        $this->authorize('manageItems', $shoppingList);
+
+        $validated = $request->validate([
+            'item_ids' => 'required|array',
+            'item_ids.*' => 'integer|exists:shopping_list_items,id',
+        ]);
+
+        // Update all items that belong to this shopping list
+        $updated = ShoppingListItem::whereIn('id', $validated['item_ids'])
+            ->where('shopping_list_id', $shoppingList->id)
+            ->update(['checked' => true]);
+
+        return response()->json([
+            'message' => 'Items marked as completed',
+            'updated_count' => $updated
+        ]);
+    }
 }

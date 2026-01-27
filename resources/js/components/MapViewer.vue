@@ -63,7 +63,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated', 'access-points-calculated', 'access-point-updated', 'update:selectedShoppingListId', 'highlight-aisles']);
+const emit = defineEmits(['item-selected', 'item-hovered', 'aisle-renamed', 'aisle-categories-updated', 'access-points-calculated', 'access-point-updated', 'update:selectedShoppingListId', 'highlight-aisles', 'items-completed', 'stepper-state-changed']);
 
 const strokeWidths = {
   lines: 10,
@@ -116,17 +116,50 @@ const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 5;
 const ZOOM_STEP = 1.2;
 
+// Stepper state
+const stepperActive = ref(false);
+const currentStepIndex = ref(0);
+const routeSteps = ref([]);
+const completedSteps = ref(new Set());
+const stepperInfoVisible = ref(true);
+
+const currentStep = computed(() => {
+  if (!stepperActive.value || routeSteps.value.length === 0) return null;
+  return routeSteps.value[currentStepIndex.value] || null;
+});
+
+const nextStep = computed(() => {
+  if (!stepperActive.value || routeSteps.value.length === 0) return null;
+  const nextIndex = currentStepIndex.value + 1;
+  return nextIndex < routeSteps.value.length ? routeSteps.value[nextIndex] : null;
+});
+
+const previousStep = computed(() => {
+  if (!stepperActive.value || routeSteps.value.length === 0) return null;
+  const prevIndex = currentStepIndex.value - 1;
+  return prevIndex >= 0 ? routeSteps.value[prevIndex] : null;
+});
+
+const isFirstStep = computed(() => currentStepIndex.value === 0);
+const isLastStep = computed(() => currentStepIndex.value === routeSteps.value.length - 1);
+const totalSteps = computed(() => routeSteps.value.length);
+const completedCount = computed(() => completedSteps.value.size);
+
 // Use pathfinding composable
 const { 
   pathMode,
   selectedAisles,
   startPoint,
   endPoint,
+  pathfinder,
+  aisleNavigationPoints,
   initPathfinder, 
   togglePathMode, 
   handleAisleSelection,
   clearPathVisualization,
-  resetPathMode
+  resetPathMode,
+  calculateRouteWithPathfinder,
+  getAccessPoint
 } = usePathfinding();
 
 onMounted(() => {
@@ -180,7 +213,12 @@ defineExpose({
   pathMode,
   togglePathMode,
   selectAislesByCategory,
-  clearPath
+  clearPath,
+  startStepper,
+  stopStepper,
+  createRouteFromList,
+  nextStepAction,
+  previousStepAction
 });
 
 function handleResize() {
@@ -249,8 +287,18 @@ function renderMap(map) {
   // Initialize pathfinder and calculate access points if needed
   const calculatedAccessPoints = initPathfinder(map, 20);
   if (calculatedAccessPoints && Object.keys(calculatedAccessPoints).length > 0) {
+    // Sync calculated points to local shelfAccessPoints
+    shelfAccessPoints.value = { ...shelfAccessPoints.value, ...calculatedAccessPoints };
     // Emit calculated access points to be saved
     emit('access-points-calculated', calculatedAccessPoints);
+  }
+  
+  // Sync existing shelf access points to the composable's aisleNavigationPoints
+  if (Object.keys(shelfAccessPoints.value).length > 0) {
+    Object.entries(shelfAccessPoints.value).forEach(([aisleId, point]) => {
+      aisleNavigationPoints.value[aisleId] = point;
+    });
+    console.log('Synced shelf access points to pathfinder:', Object.keys(shelfAccessPoints.value).length);
   }
 }
 
@@ -543,6 +591,538 @@ function handleHighlightAisles() {
   sidebarOpen.value = false;
 }
 
+function handleStartNavigation() {
+  // Get actual route using pathfinder
+  if (!selectedList.value) return;
+  
+  console.log('Starting navigation for list:', selectedList.value.name);
+  
+  // Create route steps using pathfinder
+  const routeSteps = createRouteFromList(selectedList.value);
+  
+  if (routeSteps && routeSteps.length > 0) {
+    console.log(`Created route with ${routeSteps.length} steps`);
+    startStepper(routeSteps);
+    sidebarOpen.value = false;
+  } else {
+    alert('Unable to create navigation route. Please ensure the map has been properly initialized.');
+  }
+}
+
+function createRouteFromList(list) {
+  if (!pathfinder.value) {
+    console.error('Pathfinder not initialized');
+    return null;
+  }
+
+  // Group items by aisle/category
+  const aisleGroups = {};
+  
+  if (list.items) {
+    list.items.forEach(item => {
+      // Find which aisle this item belongs to based on category
+      const categoryId = item.category_id || item.product?.category_id;
+      
+      if (!categoryId) {
+        console.warn('Item has no category:', item);
+        return;
+      }
+      
+      // Find aisle that contains this category
+      let targetAisleId = null;
+      Object.entries(aisleCategories.value).forEach(([aisleId, categories]) => {
+        if (categories.includes(categoryId)) {
+          targetAisleId = aisleId;
+        }
+      });
+      
+      if (!targetAisleId) {
+        console.warn(`No aisle found for category ${categoryId}:`, item);
+        return;
+      }
+      
+      if (!aisleGroups[targetAisleId]) {
+        aisleGroups[targetAisleId] = [];
+      }
+      aisleGroups[targetAisleId].push(item);
+    });
+  }
+  
+  console.log('Grouped items by aisle:', aisleGroups);
+  
+  if (Object.keys(aisleGroups).length === 0) {
+    console.error('No aisles found for items');
+    return null;
+  }
+  
+  // Build waypoints with access points - use the split IDs directly
+  const waypoints = Object.entries(aisleGroups).map(([aisleId, items]) => {
+    // Try to get access point with the split ID first
+    let accessPoint = shelfAccessPoints.value[aisleId];
+    
+    // If not found, try without the split suffix (fallback)
+    if (!accessPoint) {
+      const baseId = aisleId.replace(/-split-\d+$/, '');
+      accessPoint = shelfAccessPoints.value[baseId];
+    }
+    
+    // If still not found, try to find any split of this base ID
+    if (!accessPoint) {
+      const baseId = aisleId.replace(/-split-\d+$/, '');
+      const splitPattern = new RegExp(`^${baseId}-split-\\d+$`);
+      const matchingKey = Object.keys(shelfAccessPoints.value).find(key => splitPattern.test(key));
+      if (matchingKey) {
+        accessPoint = shelfAccessPoints.value[matchingKey];
+      }
+    }
+    
+    if (!accessPoint) {
+      console.warn(`No access point for aisle ${aisleId}`, 'Available:', Object.keys(shelfAccessPoints.value));
+      return null;
+    }
+    
+    // Use base ID for the name (without split suffix)
+    const baseId = aisleId.replace(/-split-\d+$/, '');
+    
+    return {
+      aisleId: baseId,
+      splitId: aisleId,
+      position: accessPoint,
+      name: aisleNames.value[baseId] || aisleNames.value[aisleId] || `Aisle ${baseId}`,
+      items: items
+    };
+  }).filter(wp => wp !== null);
+  
+  // Remove duplicate base aisles (keep first occurrence)
+  const seenBaseIds = new Set();
+  const uniqueWaypoints = waypoints.filter(wp => {
+    if (seenBaseIds.has(wp.aisleId)) {
+      // Merge items into the first waypoint with this base ID
+      const existing = waypoints.find(w => w.aisleId === wp.aisleId);
+      if (existing) {
+        existing.items.push(...wp.items);
+      }
+      return false;
+    }
+    seenBaseIds.add(wp.aisleId);
+    return true;
+  });
+  
+  if (waypoints.length === 0) {
+    console.error('No valid waypoints found');
+    return null;
+  }
+  
+  console.log(`Calculating route through ${uniqueWaypoints.length} waypoints`);
+  
+  // Use pathfinder to calculate optimal route
+  const route = pathfinder.value.calculateRoute(uniqueWaypoints);
+  
+  if (!route) {
+    console.error('Failed to calculate route');
+    return null;
+  }
+  
+  console.log('Route calculated:', route);
+  return route;
+}
+
+function createMockStepsFromList(list) {
+  // Create steps from shopping list items
+  // Group items by aisle and create navigation points
+  const steps = [];
+  
+  // Add start point
+  steps.push({
+    name: 'Entrance',
+    position: { x: 100, y: 100 }, // Default start position
+    items: []
+  });
+  
+  // Group items by aisle
+  const aisleGroups = {};
+  if (list.items) {
+    list.items.forEach(item => {
+      // Try to find which aisle this item belongs to
+      // This is a simplified version - in production, match with actual aisle categories
+      const aisleId = item.category_id || 'unknown';
+      if (!aisleGroups[aisleId]) {
+        aisleGroups[aisleId] = [];
+      }
+      aisleGroups[aisleId].push(item);
+    });
+  }
+  
+  // Create step for each aisle group
+  Object.entries(aisleGroups).forEach(([aisleId, items], index) => {
+    const aisleName = aisleNames.value[aisleId] || `Aisle ${aisleId}`;
+    
+    // Try to find the actual position from the map
+    let position = { x: 200 + (index * 150), y: 200 + (index * 100) };
+    
+    // Try to get actual shelf position if available
+    if (shelfAccessPoints.value[aisleId]) {
+      position = shelfAccessPoints.value[aisleId];
+    } else if (props.shopMap?.entities?.shelves) {
+      const shelf = props.shopMap.entities.shelves.find(s => s.id == aisleId);
+      if (shelf && shelf.points && shelf.points.length > 0) {
+        // Use center of shelf
+        const xs = shelf.points.map(p => p.x);
+        const ys = shelf.points.map(p => p.y);
+        position = {
+          x: (Math.min(...xs) + Math.max(...xs)) / 2,
+          y: (Math.min(...ys) + Math.max(...ys)) / 2
+        };
+      }
+    }
+    
+    steps.push({
+      name: aisleName,
+      position: position,
+      items: items,
+      aisleId: aisleId
+    });
+  });
+  
+  return steps;
+}
+
+function startStepper(steps) {
+  if (!steps || steps.length === 0) {
+    console.error('No steps provided to stepper');
+    return;
+  }
+  
+  routeSteps.value = steps;
+  currentStepIndex.value = 0;
+  completedSteps.value = new Set();
+  stepperActive.value = true;
+  stepperInfoVisible.value = true;
+  
+  // Emit stepper state
+  emit('stepper-state-changed', {
+    active: true,
+    currentStep: currentStepIndex.value,
+    totalSteps: steps.length,
+    steps: steps
+  });
+  
+  // Zoom to first step
+  zoomToStep(0);
+  
+  // Draw initial path visualization
+  setTimeout(() => {
+    updateStepVisualization();
+  }, 100);
+}
+
+function stopStepper() {
+  stepperActive.value = false;
+  currentStepIndex.value = 0;
+  routeSteps.value = [];
+  completedSteps.value = new Set();
+  
+  // Emit stepper state
+  emit('stepper-state-changed', {
+    active: false,
+    currentStep: 0,
+    totalSteps: 0,
+    steps: []
+  });
+}
+
+function nextStepAction() {
+  if (isLastStep.value) {
+    completeAllItems();
+    return;
+  }
+  
+  // Mark current step as completed
+  completedSteps.value.add(currentStepIndex.value);
+  
+  currentStepIndex.value++;
+  zoomToCurrentAndNext();
+  
+  // Update visual highlighting
+  updateStepVisualization();
+  
+  // Emit updated state
+  emit('stepper-state-changed', {
+    active: true,
+    currentStep: currentStepIndex.value,
+    totalSteps: routeSteps.value.length,
+    steps: routeSteps.value
+  });
+}
+
+function previousStepAction() {
+  if (!isFirstStep.value) {
+    currentStepIndex.value--;
+    zoomToCurrentAndNext();
+    updateStepVisualization();
+    
+    // Emit updated state
+    emit('stepper-state-changed', {
+      active: true,
+      currentStep: currentStepIndex.value,
+      totalSteps: routeSteps.value.length,
+      steps: routeSteps.value
+    });
+  }
+}
+
+function zoomToStep(stepIndex) {
+  if (!routeSteps.value[stepIndex] || !stage.value) return;
+  
+  const step = routeSteps.value[stepIndex];
+  const nextStepData = routeSteps.value[stepIndex + 1];
+  
+  // Get bounding box for current and next step
+  const points = [step.position];
+  if (nextStepData) {
+    points.push(nextStepData.position);
+    
+    // Include all path points if available for better framing
+    if (nextStepData.pathFromPrevious && nextStepData.pathFromPrevious.length > 0) {
+      points.push(...nextStepData.pathFromPrevious);
+    }
+  }
+  
+  zoomToBounds(points, 400); // Increased padding to ensure whole route is visible
+}
+
+function zoomToCurrentAndNext() {
+  zoomToStep(currentStepIndex.value);
+}
+
+function zoomToBounds(points, padding = 100) {
+  if (!stage.value || !containerRef.value || points.length === 0) return;
+  
+  // Calculate bounding box
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  
+  const width = maxX - minX;
+  const height = maxY - minY;
+  
+  // Calculate scale to fit with padding
+  const containerWidth = containerRef.value.offsetWidth;
+  const containerHeight = containerRef.value.offsetHeight;
+  
+  // Account for stepper overlay at the bottom
+  // Info panel + controls can be quite tall (especially on mobile when showing items)
+  const bottomOverlayHeight = window.innerWidth < 1024 ? 400 : 280;
+  const effectiveHeight = containerHeight - bottomOverlayHeight;
+  
+  const scaleX = containerWidth / (width + padding * 2);
+  const scaleY = effectiveHeight / (height + padding * 2);
+  const scale = Math.min(scaleX, scaleY, ZOOM_MAX);
+  const finalScale = Math.max(scale, minZoomLevel.value);
+  
+  // Calculate center position
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  
+  // Calculate new position to center the bounds
+  // Shift upward significantly to account for bottom overlay
+  const verticalOffset = bottomOverlayHeight / 1.5; // More aggressive shift
+  const newX = containerWidth / 2 - centerX * finalScale;
+  const newY = (containerHeight - verticalOffset) / 2 - centerY * finalScale;
+  
+  // Animate to new position and scale
+  const tween = new Konva.Tween({
+    node: stage.value,
+    duration: 0.3,
+    x: newX,
+    y: newY,
+    scaleX: finalScale,
+    scaleY: finalScale,
+    easing: Konva.Easings.EaseInOut
+  });
+  
+  tween.play();
+  zoom.value = finalScale;
+}
+
+function updateStepVisualization() {
+  if (!mainLayer.value || !stepperActive.value) return;
+  
+  // Remove existing step indicators and paths
+  const existingIndicators = mainLayer.value.find('.step-indicator');
+  existingIndicators.forEach(indicator => indicator.destroy());
+  
+  const existingPaths = mainLayer.value.find('.step-path');
+  existingPaths.forEach(path => path.destroy());
+  
+  // Draw path from current to next step
+  if (currentStep.value && nextStep.value && nextStep.value.pathFromPrevious) {
+    const path = nextStep.value.pathFromPrevious;
+    
+    if (path && path.length > 1) {
+      // Create line points array [x1, y1, x2, y2, ...]
+      const points = path.flatMap(p => [p.x, p.y]);
+      
+      // Draw the path line
+      const pathLine = new Konva.Line({
+        points: points,
+        stroke: '#3b82f6',
+        strokeWidth: 16,
+        lineJoin: 'round',
+        lineCap: 'round',
+        opacity: 0.8,
+        name: 'step-path',
+        listening: false,
+        dash: [20, 10]
+      });
+      
+      // Draw shadow for better visibility
+      const pathShadow = new Konva.Line({
+        points: points,
+        stroke: '#000000',
+        strokeWidth: 20,
+        lineJoin: 'round',
+        lineCap: 'round',
+        opacity: 0.2,
+        name: 'step-path',
+        listening: false,
+        dash: [20, 10]
+      });
+      
+      mainLayer.value.add(pathShadow);
+      mainLayer.value.add(pathLine);
+      
+      // Animate the dash
+      const anim = new Konva.Animation((frame) => {
+        const dashOffset = (frame.time / 50) % 30;
+        pathLine.dashOffset(-dashOffset);
+      }, mainLayer.value);
+      anim.start();
+      
+      // Store animation reference to stop it later
+      pathLine.animRef = anim;
+    }
+  }
+  
+  // Add indicator for current step
+  if (currentStep.value && currentStep.value.position) {
+    const indicator = new Konva.Circle({
+      x: currentStep.value.position.x,
+      y: currentStep.value.position.y,
+      radius: 30,
+      fill: '#3b82f6',
+      opacity: 0.6,
+      name: 'step-indicator',
+      listening: false
+    });
+    
+    const pulse = new Konva.Circle({
+      x: currentStep.value.position.x,
+      y: currentStep.value.position.y,
+      radius: 30,
+      stroke: '#3b82f6',
+      strokeWidth: 3,
+      opacity: 1,
+      name: 'step-indicator',
+      listening: false
+    });
+    
+    // Add label
+    const label = new Konva.Text({
+      x: currentStep.value.position.x,
+      y: currentStep.value.position.y,
+      text: '📍',
+      fontSize: 24,
+      offsetX: 12,
+      offsetY: 12,
+      name: 'step-indicator',
+      listening: false
+    });
+    
+    mainLayer.value.add(indicator);
+    mainLayer.value.add(pulse);
+    mainLayer.value.add(label);
+    
+    // Pulse animation
+    const anim = new Konva.Tween({
+      node: pulse,
+      duration: 1,
+      radius: 50,
+      opacity: 0,
+      easing: Konva.Easings.EaseOut,
+      onFinish: function() {
+        if (stepperActive.value) {
+          pulse.radius(30);
+          pulse.opacity(1);
+          this.play();
+        }
+      }
+    });
+    anim.play();
+  }
+  
+  // Add indicator for next step
+  if (nextStep.value && nextStep.value.position) {
+    const nextIndicator = new Konva.Circle({
+      x: nextStep.value.position.x,
+      y: nextStep.value.position.y,
+      radius: 20,
+      fill: '#10b981',
+      opacity: 0.5,
+      name: 'step-indicator',
+      listening: false
+    });
+    
+    const nextLabel = new Konva.Text({
+      x: nextStep.value.position.x,
+      y: nextStep.value.position.y,
+      text: '🎯',
+      fontSize: 20,
+      offsetX: 10,
+      offsetY: 10,
+      name: 'step-indicator',
+      listening: false
+    });
+    
+    mainLayer.value.add(nextIndicator);
+    mainLayer.value.add(nextLabel);
+  }
+  
+  mainLayer.value.batchDraw();
+}
+
+function completeAllItems() {
+  // Mark all steps as completed
+  for (let i = 0; i < routeSteps.value.length; i++) {
+    completedSteps.value.add(i);
+  }
+  
+  // Collect all item IDs from the route
+  const itemIds = routeSteps.value
+    .filter(step => step.items && step.items.length > 0)
+    .flatMap(step => step.items.map(item => item.id));
+  
+  // Emit event to mark items as completed
+  if (itemIds.length > 0) {
+    emit('items-completed', {
+      listId: props.selectedShoppingListId,
+      itemIds: itemIds
+    });
+  }
+  
+  // Reset stepper
+  stopStepper();
+  
+  // Reset view
+  setTimeout(() => {
+    resetView();
+  }, 100);
+}
+
 function setupMobileGestures() {
   if (!stage.value) return;
 
@@ -755,7 +1335,7 @@ function handleSetAccessPoint() {
       <div class="p-4">
         <!-- Close Button -->
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold theme-text">Menu</h2>
+          <h2 class="text-xl font-bold theme-text">{{ $t('Menu') }}</h2>
           <button 
             @click="sidebarOpen = false"
             class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -773,39 +1353,49 @@ function handleSetAccessPoint() {
             <span>{{ shopName }}</span>
           </h3>
           <div class="text-sm theme-text space-y-1">
-            <p><span class="font-semibold">Floor Plan</span></p>
-            <p><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
+            <p><span class="font-semibold">{{ $t('Floor Plan') }}</span></p>
+            <p><span class="font-semibold">{{ $t('Dimensions:') }}</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
           </div>
         </div>
 
-        <!-- Shopping List Section -->
-        <div v-if="showShoppingLists" class="mb-6">
-          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">Shopping List</h3>
-          <p class="text-xs theme-text opacity-60 mb-3">Select a list to highlight aisles</p>
+        <!-- Shopping List Section - Mobile only -->
+        <div v-if="showShoppingLists && !stepperActive" class="mb-6 lg:hidden">
+          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">{{ $t('Shopping Navigation') }}</h3>
+          <p class="text-xs theme-text opacity-60 mb-3">{{ $t('Select a list to navigate') }}</p>
           
           <select 
             :value="selectedShoppingListId"
             @change="handleShoppingListChange"
             class="w-full theme-surface theme-text px-3 py-2 rounded-lg border theme-border mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
-            <option value="">Select a shopping list...</option>
+            <option value="">{{ $t('Select a shopping list...') }}</option>
             <option v-for="list in shoppingLists" :key="list.id" :value="list.id">
-              {{ list.name }} ({{ list.items.length }} items)
+              {{ list.name }} ({{ list.items.length }} {{ $t('items') }})
             </option>
           </select>
 
-          <button 
-            @click="handleHighlightAisles"
-            :disabled="!selectedShoppingListId || loadingShoppingLists"
-            class="w-full theme-btn-primary py-2.5 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm"
-          >
-            {{ loadingShoppingLists ? 'Loading...' : 'Highlight Aisles' }}
-          </button>
+          <div class="flex gap-2">
+            <button 
+              @click="handleHighlightAisles"
+              :disabled="!selectedShoppingListId || loadingShoppingLists"
+              class="flex-1 theme-btn-primary py-2.5 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm"
+            >
+              {{ loadingShoppingLists ? $t('Loading...') : $t('Highlight') }}
+            </button>
+            
+            <button 
+              @click="handleStartNavigation"
+              :disabled="!selectedShoppingListId || loadingShoppingLists"
+              class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm"
+            >
+              {{ $t('Navigate') }}
+            </button>
+          </div>
 
           <!-- Selected List Info -->
           <div v-if="selectedList" class="mt-3 theme-surface rounded-lg p-3 border theme-border">
             <h4 class="font-semibold theme-text text-xs mb-2">{{ selectedList.name }}</h4>
-            <p class="text-xs theme-text opacity-60 mb-2">{{ selectedList.items.length }} items</p>
+            <p class="text-xs theme-text opacity-60 mb-2">{{ selectedList.items.length }} {{ $t('items') }}</p>
             <div class="max-h-32 overflow-y-auto space-y-1">
               <div v-for="item in selectedList.items" :key="item.id" class="text-xs theme-text opacity-80 flex items-start gap-1">
                 <span class="opacity-50">•</span>
@@ -817,49 +1407,48 @@ function handleSetAccessPoint() {
 
         <!-- Zoom Controls -->
         <div class="mb-6">
-          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">Zoom Controls</h3>
+          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">{{ $t('Zoom Controls') }}</h3>
           <div class="flex gap-2">
             <button 
               @click="zoomIn(); sidebarOpen = false"
               class="flex-1 theme-surface border theme-border rounded-lg py-3 font-semibold theme-text hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
             >
-              + Zoom In
+              {{ $t('+ Zoom In') }}
             </button>
             <button 
               @click="zoomOut(); sidebarOpen = false"
               class="flex-1 theme-surface border theme-border rounded-lg py-3 font-semibold theme-text hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
             >
-              − Zoom Out
+              {{ $t('− Zoom Out') }}
             </button>
           </div>
           <button 
             @click="resetView(); sidebarOpen = false"
             class="w-full mt-2 theme-surface border theme-border rounded-lg py-3 font-semibold theme-text hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
           >
-            ⟲ Reset View
+            {{ $t('⟲ Reset View') }}
           </button>
           <div class="mt-3 text-center">
             <div class="text-sm font-medium theme-text">
-              Current Zoom: {{ (zoom * 100).toFixed(0) }}%
+              {{ $t('Current Zoom:') }} {{ (zoom * 100).toFixed(0) }}%
             </div>
           </div>
         </div>
 
         <!-- Help -->
         <div class="border-t theme-border pt-4">
-          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">Tips</h3>
+          <h3 class="text-sm font-semibold theme-text mb-3 opacity-70">{{ $t('Tips') }}</h3>
           <div class="text-sm theme-text space-y-2 opacity-75">
-            <p>💡 Pinch to zoom on mobile</p>
-            <p>👆 Drag to pan around the map</p>
-            <p>🔍 Use search to find specific aisles</p>
-            <p v-if="isAdmin">✏️ Right-click to edit (desktop)</p>
+            <p>{{ $t('💡 Pinch to zoom on mobile') }}</p>
+            <p>{{ $t('👆 Drag to pan around the map') }}</p>
+            <p>{{ $t('🔍 Use search to find specific aisles') }}</p>
+            <p v-if="isAdmin">{{ $t('✏️ Right-click to edit (desktop)') }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Info Panel (Top-left) - Desktop Only, Admin Mode Only -->
-    <transition name="slide-right">
+    <!-- Info Panel (Top-left) - Desktop Only -->\n    <transition name="slide-right">
       <div v-if="false" v-show="showInfo" class="hidden lg:block absolute top-4 left-4 theme-surface rounded-lg shadow-lg p-4 max-w-sm z-10">
         <button @click="showInfo = false" class="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-sm theme-text">✕</button>
         
@@ -867,13 +1456,13 @@ function handleSetAccessPoint() {
           <span>📍</span>
           <span class="truncate">{{ shopName }}</span>
         </h2>
-        <h3 class="text-sm font-semibold theme-text opacity-70 mb-1">Floor Plan</h3>
-        <p class="text-sm theme-text"><span class="font-semibold">Dimensions:</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
+        <h3 class="text-sm font-semibold theme-text opacity-70 mb-1">{{ $t('Floor Plan') }}</h3>
+        <p class="text-sm theme-text"><span class="font-semibold">{{ $t('Dimensions:') }}</span> {{ shopMap.bounds.width.toFixed(0) }} × {{ shopMap.bounds.height.toFixed(0) }}</p>
       </div>
     </transition>
 
     <button v-if="false" v-show="!showInfo" @click="showInfo = true" class="hidden lg:block absolute top-4 left-4 theme-surface rounded-lg shadow-lg px-4 py-2 hover:shadow-xl transition-shadow z-10 theme-text font-medium">
-      ℹ️ Info
+      ℹ️ {{ $t('Info') }}
     </button>
 
     <!-- Zoom Controls (Bottom-right, Desktop) -->
@@ -926,7 +1515,7 @@ function handleSetAccessPoint() {
           @input="handleSearch"
           @focus="handleSearch"
           type="text" 
-          placeholder="Search aisles..." 
+          :placeholder="$t('Search aisles...')" 
           class="flex-1 bg-transparent border-none outline-none theme-text placeholder-gray-400 text-sm min-w-0"
         />
         <button 
@@ -946,7 +1535,7 @@ function handleSetAccessPoint() {
         class="theme-surface rounded-lg shadow-lg mt-2 border theme-border overflow-hidden w-full"
       >
         <div class="px-3 md:px-4 py-2 text-xs text-gray-500 border-b theme-border">
-          {{ searchResults.length }} result{{ searchResults.length !== 1 ? 's' : '' }} found
+          {{ searchResults.length }} {{ searchResults.length !== 1 ? $t('results') : $t('result') }} {{ $t('found') }}
         </div>
         <div class="max-h-48 md:max-h-64 overflow-y-auto">
           <button
@@ -958,7 +1547,7 @@ function handleSetAccessPoint() {
             <div class="min-w-0 flex-1">
               <div class="font-medium truncate text-sm">{{ result.name }}</div>
               <div v-if="result.matchType === 'category'" class="text-xs text-gray-500 truncate">
-                Category: {{ result.categoryName }}
+                {{ $t('Category:') }} {{ result.categoryName }}
               </div>
             </div>
             <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -970,15 +1559,138 @@ function handleSetAccessPoint() {
     </div>
 
     <!-- Help Hint (Bottom-center, Desktop only) -->
-    <div class="hidden lg:block absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-4 py-2 z-10">
+    <div v-if="!stepperActive" class="hidden lg:block absolute bottom-4 left-1/2 transform -translate-x-1/2 theme-surface rounded-full shadow-md px-4 py-2 z-10">
       <div class="text-xs theme-text flex items-center gap-3">
-        <span>💡 Scroll to zoom</span>
+        <span>{{ $t('Scroll to zoom') }}</span>
         <span class="text-gray-400">•</span>
-        <span>Drag to pan</span>
+        <span>{{ $t('Drag to pan') }}</span>
         <span v-if="isAdmin" class="text-gray-400">•</span>
-        <span v-if="isAdmin">Right-click to edit</span>
+        <span v-if="isAdmin">{{ $t('Right-click to edit') }}</span>
       </div>
     </div>
+
+    <!-- Stepper Controls (Bottom-center, Mobile Only) -->
+    <transition name="slide-up">
+      <div v-if="stepperActive" class="lg:hidden absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-[95vw]">
+        <!-- Info Panel -->
+        <transition name="slide-down">
+          <div v-if="stepperInfoVisible" class="theme-surface rounded-lg shadow-2xl p-3 md:p-4 mb-3 border theme-border">
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex-1">
+                <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-1">
+                  {{ $t('Step') }} {{ currentStepIndex + 1 }} {{ $t('of') }} {{ totalSteps }}
+                </div>
+                <div class="text-lg md:text-xl font-bold theme-text mb-2">
+                  {{ currentStep?.name || $t('Current Location') }}
+                </div>
+              </div>
+              <button 
+                @click="stepperInfoVisible = false"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ml-2"
+              >
+                <svg class="w-4 h-4 theme-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Items at Current Step -->
+            <div v-if="currentStep?.items && currentStep.items.length > 0" class="mb-3">
+              <div class="text-xs md:text-sm font-semibold theme-text mb-2 flex items-center gap-2">
+                <span>📋</span>
+                <span>{{ $t('Items to collect:') }}</span>
+              </div>
+              <div class="space-y-1 max-h-32 overflow-y-auto">
+                <div 
+                  v-for="item in currentStep.items" 
+                  :key="item.id"
+                  class="text-xs md:text-sm theme-text bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1.5 flex items-center gap-2"
+                >
+                  <span class="text-blue-500">✓</span>
+                  <span>{{ item.name }}</span>
+                  <span v-if="item.quantity > 1" class="text-gray-500 text-xs">× {{ item.quantity }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Next Step Preview -->
+            <div v-if="nextStep" class="border-t theme-border pt-3">
+              <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-1">
+                {{ $t('Next:') }} {{ nextStep.name }}
+              </div>
+              <div v-if="nextStep.items && nextStep.items.length > 0" class="text-xs theme-text opacity-70">
+                {{ nextStep.items.length }} {{ nextStep.items.length !== 1 ? $t('items') : $t('item') }} {{ $t('to collect') }}
+              </div>
+            </div>
+
+            <!-- Completion Status -->
+            <div class="border-t theme-border pt-3 mt-3">
+              <div class="flex items-center justify-between text-xs md:text-sm">
+                <span class="theme-text">{{ $t('Progress') }}</span>
+                <span class="font-semibold theme-text">{{ completedCount }} / {{ totalSteps - 1 }}</span>
+              </div>
+              <div class="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  class="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-300"
+                  :style="{ width: `${(completedCount / Math.max(totalSteps - 1, 1)) * 100}%` }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </transition>
+
+        <!-- Collapsed Info Button -->
+        <button 
+          v-if="!stepperInfoVisible"
+          @click="stepperInfoVisible = true"
+          class="theme-surface rounded-lg shadow-lg px-4 py-2 mb-3 mx-auto block hover:shadow-xl transition-all active:scale-95"
+        >
+          <div class="flex items-center gap-2 text-sm theme-text">
+            <span>{{ $t('Step') }} {{ currentStepIndex + 1 }} / {{ totalSteps }}</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+            </svg>
+          </div>
+        </button>
+
+        <!-- Navigation Controls -->
+        <div class="theme-surface rounded-lg shadow-2xl p-2 md:p-3 flex items-center justify-between gap-2">
+          <button 
+            @click="previousStepAction"
+            :disabled="isFirstStep"
+            class="flex-shrink-0 px-3 md:px-4 py-2 md:py-3 rounded-lg font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 theme-text text-sm md:text-base"
+          >
+            <span class="hidden md:inline">{{ $t('← Previous') }}</span>
+            <span class="md:hidden">←</span>
+          </button>
+
+          <div class="flex-1 text-center">
+            <div class="text-xs md:text-sm theme-text font-medium truncate px-2">
+              {{ currentStep?.name || 'Start' }}
+            </div>
+          </div>
+
+          <button 
+            @click="nextStepAction"
+            class="flex-shrink-0 px-3 md:px-4 py-2 md:py-3 rounded-lg font-medium transition-all active:scale-95 theme-text text-sm md:text-base"
+            :class="isLastStep ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
+          >
+            <span class="hidden md:inline">{{ isLastStep ? $t('Complete ✓') : $t('Next →') }}</span>
+            <span class="md:hidden">{{ isLastStep ? '✓' : '→' }}</span>
+          </button>
+
+          <button 
+            @click="stopStepper"
+            class="flex-shrink-0 p-2 md:p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors active:scale-95"
+            :title="$t('Exit navigation')"
+          >
+            <svg class="w-5 h-5 theme-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </transition>
 
     <!-- Context Menu -->
     <ContextMenu
@@ -996,3 +1708,63 @@ function handleSetAccessPoint() {
   </div>
 </template>
 
+<style scoped>
+/* Slide transitions */
+.slide-right-enter-active,
+.slide-right-leave-active,
+.slide-left-enter-active,
+.slide-left-leave-active,
+.slide-up-enter-active,
+.slide-up-leave-active,
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-right-enter-from {
+  transform: translateX(-20px);
+  opacity: 0;
+}
+
+.slide-right-leave-to {
+  transform: translateX(-20px);
+  opacity: 0;
+}
+
+.slide-left-enter-from {
+  transform: translateX(20px);
+  opacity: 0;
+}
+
+.slide-left-leave-to {
+  transform: translateX(20px);
+  opacity: 0;
+}
+
+.slide-up-enter-from {
+  transform: translate(-50%, 20px);
+  opacity: 0;
+}
+
+.slide-up-leave-to {
+  transform: translate(-50%, 20px);
+  opacity: 0;
+}
+
+.slide-down-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-down-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+/* Touch improvements */
+@media (max-width: 768px) {
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+</style>

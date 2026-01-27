@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+import { trans } from 'laravel-vue-i18n';
 import PageHead from '../../components/PageHead.vue';
 import ShopViewModal from '../../components/ShopViewModal.vue';
 
@@ -97,7 +98,7 @@ const toggleFavorite = async (event, shop) => {
     event.stopPropagation();
 
     if (!user.value) {
-        alert('Kérlek jelentkezz be a kedvenc üzletek mentéséhez!');
+        alert(trans('Please log in to save favorite shops!'));
         return;
     }
 
@@ -108,7 +109,7 @@ const toggleFavorite = async (event, shop) => {
         favoriteShops.value = response.data.favorite_shops;
     } catch (error) {
         console.error('Failed to toggle favorite:', error);
-        alert('Hiba történt a kedvencek frissítése közben.');
+        alert(trans('An error occurred while updating favorites.'));
     } finally {
         togglingFavorite.value = null;
     }
@@ -153,10 +154,10 @@ onMounted(() => {
                 <div class="mb-12">
                     <h1
                         class="text-4xl md:text-5xl font-bold mb-4 bg-linear-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
-                        Üzletek
+                        {{ $t('Shops') }}
                     </h1>
                     <p class="text-lg opacity-80">
-                        Fedezd fel a környékbeli üzleteket és találd meg a számodra legmegfelelőbbet!
+                        {{ $t('Explore nearby shops and find the perfect one for you!') }}
                     </p>
                 </div>
             </div>
@@ -167,7 +168,7 @@ onMounted(() => {
                     <!-- Search Bar -->
                     <div class="w-full md:w-2/5 relative">
                         <input v-model="searchQuery" type="text"
-                            placeholder="Üzlet keresése név vagy leírás alapján..."
+                            :placeholder="$t('Search shops by name or description...')"
                             class="w-full px-4 py-3 pl-12 theme-surface border border-current border-opacity-20 rounded-lg theme-text focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" />
                         <svg class="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 opacity-50"
                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,7 +197,7 @@ onMounted(() => {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                         </svg>
-                        <span>{{ showOnlyFavorites ? 'Minden' : 'Kedvencek' }}</span>
+                        <span>{{ showOnlyFavorites ? $t('All') : $t('Favorites') }}</span>
                         <span v-if="!showOnlyFavorites"
                             class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
                             {{ favoriteShops.length }}
@@ -217,7 +218,7 @@ onMounted(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
-                    <span>{{ showOnlyFavorites ? 'Minden üzlet' : 'Csak kedvencek' }}</span>
+                    <span>{{ showOnlyFavorites ? $t('Show all shops') : $t('Only Favorites') }}</span>
                     <span v-if="!showOnlyFavorites"
                         class="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                         {{ favoriteShops.length }}
@@ -236,7 +237,7 @@ onMounted(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
-                    <p class="text-lg opacity-60">Nincsenek még üzletek az adatbázisban.</p>
+                    <p class="text-lg opacity-60">{{ $t('There are no shops in the database yet.') }}</p>
                 </div>
             </div>
 
@@ -250,15 +251,15 @@ onMounted(() => {
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     <p class="text-lg opacity-60">
-                        {{ showOnlyFavorites ? 'Nincsenek kedvenc üzletek.' : 'Nincs találat a keresésre.' }}
+                        {{ showOnlyFavorites ? $t('No favorite shops.') : $t('No results found for your search.') }}
                     </p>
                     <button v-if="!showOnlyFavorites" @click="searchQuery = ''"
                         class="mt-4 theme-btn-primary px-4 py-2 rounded-lg text-sm">
-                        Keresés törlése
+                        {{ $t('Clear search') }}
                     </button>
                     <button v-else @click="showOnlyFavorites = false"
                         class="mt-4 theme-btn-primary px-4 py-2 rounded-lg text-sm">
-                        Összes üzlet megjelenítése
+                        {{ $t('Show All Shops') }}
                     </button>
                 </div>
             </div>
@@ -300,7 +301,7 @@ onMounted(() => {
                     </div>
 
                     <h3 class="text-xl font-bold mb-2 theme-text">{{ shop.name }}</h3>
-                    <p class="text-sm opacity-75 mb-4 flex-1">{{ shop.description || 'Nincs leírás' }}</p>
+                    <p class="text-sm opacity-75 mb-4 flex-1">{{ shop.description || $t('No description') }}</p>
 
                     <div class="mt-auto flex items-center justify-between">
                         <div class="flex items-center text-sm opacity-60">
@@ -308,11 +309,11 @@ onMounted(() => {
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                             </svg>
-                            Térkép
+                            {{ $t('Map') }}
                         </div>
                         <button
                             class="theme-btn-primary px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 active:opacity-80 active:scale-95 transform transition-all flex items-center gap-2">
-                            <span>Megnyitás</span>
+                            <span>{{ $t('Open') }}</span>
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M9 5l7 7-7 7" />

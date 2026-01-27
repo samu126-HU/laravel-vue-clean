@@ -390,6 +390,50 @@ export function usePathfinding() {
     }
   });
 
+  /**
+   * Calculate a complete route through multiple aisles using pathfinder
+   */
+  function calculateRouteWithPathfinder(aisleIds, aisleCategories) {
+    if (!pathfinder.value) {
+      console.error('Pathfinder not initialized');
+      return null;
+    }
+
+    // Build waypoints array with positions and metadata
+    const waypoints = aisleIds.map(aisleId => {
+      const position = aisleNavigationPoints.value[aisleId];
+      
+      if (!position) {
+        console.warn(`No access point found for aisle ${aisleId}`);
+        return null;
+      }
+
+      return {
+        aisleId,
+        position,
+        name: `Aisle ${aisleId}`,
+        items: [] // Will be filled by caller
+      };
+    }).filter(wp => wp !== null);
+
+    if (waypoints.length === 0) {
+      console.error('No valid waypoints to route through');
+      return null;
+    }
+
+    // Use pathfinder to calculate optimized route
+    const route = pathfinder.value.calculateRoute(waypoints);
+    
+    return route;
+  }
+
+  /**
+   * Get access point for a specific aisle
+   */
+  function getAccessPoint(aisleId) {
+    return aisleNavigationPoints.value[aisleId] || null;
+  }
+
   return {
     pathfinder,
     pathMode,
@@ -401,6 +445,8 @@ export function usePathfinding() {
     togglePathMode,
     handleAisleSelection,
     clearPathVisualization,
-    resetPathMode
+    resetPathMode,
+    calculateRouteWithPathfinder,
+    getAccessPoint
   };
 }

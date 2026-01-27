@@ -24,7 +24,10 @@ export default defineConfig({
         port: 5173,
         cors: true,
         hmr: {
-            host: '172.16.1.119',
+            host: 'localhost',
+        },
+        headers: {
+            'Access-Control-Allow-Origin': '*',
         },
     },
 });

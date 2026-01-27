@@ -109,6 +109,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/shopping-lists/{shoppingList}/items', [ShoppingListController::class, 'addItem']);
         Route::put('/shopping-lists/{shoppingList}/items/{item}', [ShoppingListController::class, 'updateItem']);
         Route::delete('/shopping-lists/{shoppingList}/items/{item}', [ShoppingListController::class, 'removeItem']);
+        Route::post('/shopping-lists/{shoppingList}/items/complete', [ShoppingListController::class, 'completeItems']);
     });
 
     // Admin API routes (requires authentication and admin role) with rate limiting

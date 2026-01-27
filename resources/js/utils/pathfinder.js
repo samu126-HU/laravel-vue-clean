@@ -314,4 +314,215 @@ export class PathFinder {
       cellSize: this.gridSize
     };
   }
+
+  /**
+   * Calculate access point for a shelf (closest walkable point to shelf center)
+   */
+  calculateShelfAccessPoint(shelf) {
+    if (!shelf.bounds) return null;
+    
+    // Calculate center of shelf
+    const centerX = (shelf.bounds.minX + shelf.bounds.maxX) / 2;
+    const centerY = (shelf.bounds.minY + shelf.bounds.maxY) / 2;
+    
+    // Search for nearest walkable point around the shelf
+    const searchRadius = Math.max(shelf.bounds.width, shelf.bounds.height) / 2;
+    const step = this.gridSize;
+    
+    let bestPoint = null;
+    let bestDistance = Infinity;
+    
+    // Check points around the perimeter of the shelf
+    const angles = 16; // Check 16 directions
+    for (let i = 0; i < angles; i++) {
+      const angle = (i / angles) * Math.PI * 2;
+      
+      // Try multiple distances from center
+      for (let dist = searchRadius + step; dist < searchRadius * 3; dist += step) {
+        const x = centerX + Math.cos(angle) * dist;
+        const y = centerY + Math.sin(angle) * dist;
+        
+        if (this.isWalkable({ x, y })) {
+          const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestPoint = { x, y };
+          }
+        }
+      }
+    }
+    
+    // If still no point found, search in a grid pattern
+    if (!bestPoint) {
+      for (let dy = -searchRadius * 2; dy <= searchRadius * 2; dy += step) {
+        for (let dx = -searchRadius * 2; dx <= searchRadius * 2; dx += step) {
+          const x = centerX + dx;
+          const y = centerY + dy;
+          
+          if (this.isWalkable({ x, y })) {
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestPoint = { x, y };
+            }
+          }
+        }
+      }
+    }
+    
+    return bestPoint;
+  }
+
+  /**
+   * Calculate access points for all shelves
+   */
+  calculateAllShelfAccessPoints() {
+    const accessPoints = {};
+    
+    if (this.shopMap.entities.shelves) {
+      this.shopMap.entities.shelves.forEach(shelf => {
+        const point = this.calculateShelfAccessPoint(shelf);
+        if (point) {
+          accessPoints[shelf.id] = {
+            x: point.x,
+            y: point.y,
+            shelfId: shelf.id,
+            method: 'calculated'
+          };
+        }
+      });
+    }
+    
+    console.log(`Calculated access points for ${Object.keys(accessPoints).length} shelves`);
+    return accessPoints;
+  }
+
+  /**
+   * Get start point (entrance) - either from map or calculate
+   */
+  getStartPoint() {
+    // Try to get from map entities
+    if (this.shopMap.entities.startPoint) {
+      return this.shopMap.entities.startPoint;
+    }
+    
+    // Otherwise, find the first walkable point near the top-left
+    const { bounds } = this.shopMap;
+    const searchArea = Math.min(bounds.width, bounds.height) / 4;
+    
+    for (let y = 0; y < searchArea; y += this.gridSize) {
+      for (let x = 0; x < searchArea; x += this.gridSize) {
+        const worldPos = {
+          x: bounds.minX + x,
+          y: bounds.minY + y
+        };
+        if (this.isWalkable(worldPos)) {
+          console.log('Calculated start point at', worldPos);
+          return worldPos;
+        }
+      }
+    }
+    
+    return { x: bounds.minX + 50, y: bounds.minY + 50 };
+  }
+
+  /**
+   * Get end point (exit) - either from map or calculate
+   */
+  getEndPoint() {
+    // Try to get from map entities
+    if (this.shopMap.entities.endPoint) {
+      return this.shopMap.entities.endPoint;
+    }
+    
+    // Otherwise, find the last walkable point near the bottom-right
+    const { bounds } = this.shopMap;
+    const searchArea = Math.min(bounds.width, bounds.height) / 4;
+    
+    for (let y = bounds.height; y > bounds.height - searchArea; y -= this.gridSize) {
+      for (let x = bounds.width; x > bounds.width - searchArea; x -= this.gridSize) {
+        const worldPos = {
+          x: bounds.minX + x,
+          y: bounds.minY + y
+        };
+        if (this.isWalkable(worldPos)) {
+          console.log('Calculated end point at', worldPos);
+          return worldPos;
+        }
+      }
+    }
+    
+    return { x: bounds.maxX - 50, y: bounds.maxY - 50 };
+  }
+
+  /**
+   * Calculate optimized route through multiple waypoints
+   * @param {Array} waypoints - Array of {x, y, name, items} objects
+   * @returns {Array} Ordered waypoints with path segments
+   */
+  calculateRoute(waypoints) {
+    if (!waypoints || waypoints.length === 0) {
+      return null;
+    }
+    
+    // For now, use simple nearest-neighbor ordering
+    // TODO: Implement proper TSP solver for optimal routing
+    
+    const startPoint = this.getStartPoint();
+    const route = [];
+    const unvisited = [...waypoints];
+    let currentPos = startPoint;
+    
+    // Add start point to route
+    route.push({
+      name: 'Entrance',
+      position: startPoint,
+      items: [],
+      pathFromPrevious: []
+    });
+    
+    // Visit each waypoint in nearest-neighbor order
+    while (unvisited.length > 0) {
+      let nearestIdx = 0;
+      let nearestDist = Infinity;
+      
+      // Find nearest unvisited waypoint
+      unvisited.forEach((wp, idx) => {
+        const dx = wp.position.x - currentPos.x;
+        const dy = wp.position.y - currentPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestIdx = idx;
+        }
+      });
+      
+      const nextWaypoint = unvisited[nearestIdx];
+      
+      // Calculate path to this waypoint
+      const path = this.findPath(currentPos, nextWaypoint.position);
+      
+      route.push({
+        ...nextWaypoint,
+        pathFromPrevious: path || [nextWaypoint.position]
+      });
+      
+      currentPos = nextWaypoint.position;
+      unvisited.splice(nearestIdx, 1);
+    }
+    
+    // Add end point (exit)
+    const endPoint = this.getEndPoint();
+    const exitPath = this.findPath(currentPos, endPoint);
+    route.push({
+      name: 'Exit',
+      position: endPoint,
+      items: [],
+      pathFromPrevious: exitPath || [endPoint]
+    });
+    
+    console.log(`Calculated route with ${route.length} stops`);
+    return route;
+  }
 }

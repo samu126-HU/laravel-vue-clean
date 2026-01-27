@@ -100,10 +100,8 @@
     "Total Products": "Összes Termék",
     "Total Categories": "Összes Kategória",
     "Total Shops": "Összes Üzlet",
-    "Shopping Lists": "Bevásárlólisták",
     "Recent Users": "Legújabb Felhasználók",
     
-    "Users & Roles": "Felhasználók és Szerepkörök",
     "Make Admin": "Admin Jogosultság Megadása",
     "Revoke Admin": "Admin Jogosultság Visszavonása",
     
@@ -135,7 +133,7 @@
     "Platform Statistics": "Platform Statisztikák",
     "Available Shops": "Elérhető Üzletek",
     "Products Listed": "Listázott Termékek",
-    "Interactive Store Maps": "Interaktív Üzlet Térképek",
+    "Interactive Store Maps": "Interaktív boltnavigáció",
     "View detailed store layouts with aisle organization and product locations": "Tekintsd meg a részletes üzlet elrendezéseket folyosó szervezéssel és termék elhelyezésekkel",
     "Smart Organization": "Okos Szervezés",
     "Automatically organize items by aisle and category for efficient shopping": "Automatikusan rendezd a termékeket folyosó és kategória szerint a hatékony bevásárláshoz",
@@ -169,14 +167,12 @@
     "products": "termék",
     "done": "kész",
     "+ Products": "+ Termékek",
-    "Edit": "Szerkesztés",
     "Edit List": "Lista Szerkesztése",
     "Added Products": "Hozzáadott Termékek",
     "No products on this list yet": "Még nincsenek termékek ezen a listán",
     "Product search": "Termék keresése",
     "Results": "Találatok",
     "No results": "Nincs találat",
-    "Add": "Hozzáadás",
     
     "Explore nearby shops and find the perfect one for you!": "Fedezd fel a környékbeli üzleteket és találd meg a számodra legmegfelelőbbet!",
     "Search shops by name or description...": "Üzlet keresése név vagy leírás alapján...",
@@ -210,5 +206,34 @@
     
     "No products with categories found in this shopping list": "Nem találhatók kategóriákkal ellátott termékek ebben a bevásárlólistában",
     "result found": "találat",
-    "results found": "találat"
+    "results found": "találat",
+    
+    "Shopping Complete!": "Bevásárlás befejezve!",
+    "items checked off": "termék kipipálva",
+    "Logging in...": "Bejelentkezés...",
+    "Registering...": "Regisztráció...",
+    
+    "Your Statistics": "Statisztikáid",
+    "Shopping Lists Created": "Létrehozott Bevásárlólisták",
+    "Items Checked Off": "Kipipált Termékek",
+    
+    "Show Products": "Termékek megjelenítése",
+    
+    "Highlight": "Kiemelés",
+    "to collect": "begyűjtendő",
+    "← Previous": "← Előző",
+    "Next →": "Következő →",
+    
+    "List created successfully!": "Lista sikeresen létrehozva!",
+    "List updated successfully!": "Lista sikeresen frissítve!",
+    "List deleted successfully!": "Lista sikeresen törölve!",
+    "Item added to list!": "Termék hozzáadva a listához!",
+    "Item removed from list!": "Termék eltávolítva a listáról!",
+    "Quantity updated!": "Mennyiség frissítve!",
+    
+    "Failed to save list": "Lista mentése sikertelen",
+    "Failed to delete list": "Lista törlése sikertelen",
+    "Failed to add item": "Termék hozzáadása sikertelen",
+    "Failed to remove item": "Termék eltávolítása sikertelen",
+    "Failed to update quantity": "Mennyiség frissítése sikertelen"
 }
