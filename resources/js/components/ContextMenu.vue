@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, nextTick, onMounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 
 const props = defineProps({
@@ -30,8 +30,40 @@ const isSelectingCategory = ref(false);
 const isSettingAccessPoint = ref(false);
 const categories = ref([]);
 const selectedCategories = ref([]);
+const menuRef = ref(null);
+const menuPosition = ref({ left: 0, top: 0 });
+
+const VIEWPORT_PADDING = 8;
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function updateMenuPosition() {
+  const minBoundary = VIEWPORT_PADDING;
+  const menuEl = menuRef.value;
+
+  if (!menuEl) {
+    menuPosition.value = {
+      left: props.x,
+      top: props.y
+    };
+    return;
+  }
+
+  const menuRect = menuEl.getBoundingClientRect();
+  const maxLeft = Math.max(minBoundary, window.innerWidth - menuRect.width - VIEWPORT_PADDING);
+  const maxTop = Math.max(minBoundary, window.innerHeight - menuRect.height - VIEWPORT_PADDING);
+
+  menuPosition.value = {
+    left: clamp(props.x, minBoundary, maxLeft),
+    top: clamp(props.y, minBoundary, maxTop)
+  };
+}
 
 onMounted(async () => {
+  window.addEventListener('resize', updateMenuPosition);
+
   // Load categories from API
   try {
     const response = await axios.get('/api/v1/categories');
@@ -41,15 +73,37 @@ onMounted(async () => {
   }
 });
 
-watch(() => props.visible, (visible) => {
+onUnmounted(() => {
+  window.removeEventListener('resize', updateMenuPosition);
+});
+
+watch(() => props.visible, async (visible) => {
   if (visible) {
     nameInput.value = props.item?.name || '';
-    selectedCategories.value = props.item?.categories || [];
+    selectedCategories.value = [...(props.item?.categories || [])];
     isEditing.value = false;
     isSelectingCategory.value = false;
     isSettingAccessPoint.value = false;
+
+    menuPosition.value = {
+      left: props.x,
+      top: props.y
+    };
+
+    await nextTick();
+    updateMenuPosition();
   }
 });
+
+watch(
+  [() => props.x, () => props.y, isSelectingCategory, isEditing, () => categories.value.length],
+  async () => {
+    if (!props.visible) return;
+
+    await nextTick();
+    updateMenuPosition();
+  }
+);
 
 function startRename() {
   isEditing.value = true;
@@ -126,29 +180,34 @@ function getCategoryById(id) {
       @contextmenu.prevent="emit('close')"
     >
       <div
-        class="absolute theme-surface rounded-lg shadow-2xl overflow-hidden min-w-[250px] max-w-[350px]"
-        :style="{ left: `${x}px`, top: `${y}px` }"
+        ref="menuRef"
+        class="absolute theme-surface rounded-lg shadow-2xl overflow-hidden w-[min(350px,calc(100vw-16px))] sm:min-w-[250px]"
+        :style="{ left: `${menuPosition.left}px`, top: `${menuPosition.top}px` }"
         @click.stop
       >
         <!-- Category Selection Mode -->
-        <div v-if="isSelectingCategory" class="p-3 max-h-[400px] overflow-y-auto">
-          <div class="text-sm font-semibold theme-text mb-3">Select Categories</div>
-          <div class="space-y-1">
-            <button
-              v-for="category in categories"
-              :key="category.id"
-              @click="toggleCategory(category.id)"
-              class="w-full px-3 py-2 text-left rounded-md theme-text text-sm flex items-center justify-between transition-colors"
-              :class="selectedCategories.includes(category.id) ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'"
-            >
-              <span class="flex items-center gap-2">
-                <span class="text-lg">{{ category.icon }}</span>
-                <span>{{ category.name }}</span>
-              </span>
-              <span v-if="selectedCategories.includes(category.id)" class="text-blue-600 dark:text-blue-400">✓</span>
-            </button>
+        <div v-if="isSelectingCategory" class="flex flex-col max-h-[min(420px,calc(100vh-16px))]">
+          <div class="px-3 pt-3 pb-2 text-sm font-semibold theme-text">Select Categories</div>
+
+          <div class="px-3 pb-3 overflow-y-auto flex-1 min-h-0">
+            <div class="space-y-1">
+              <button
+                v-for="category in categories"
+                :key="category.id"
+                @click="toggleCategory(category.id)"
+                class="w-full px-3 py-2 text-left rounded-md theme-text text-sm flex items-center justify-between transition-colors"
+                :class="selectedCategories.includes(category.id) ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'"
+              >
+                <span class="flex items-center gap-2">
+                  <span class="text-lg">{{ category.icon }}</span>
+                  <span>{{ category.name }}</span>
+                </span>
+                <span v-if="selectedCategories.includes(category.id)" class="text-blue-600 dark:text-blue-400">✓</span>
+              </button>
+            </div>
           </div>
-          <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+
+          <div class="flex gap-2 p-3 pt-2 border-t border-gray-200 dark:border-gray-700 shrink-0">
             <button
               @click="confirmCategories"
               class="flex-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-medium transition-colors"
