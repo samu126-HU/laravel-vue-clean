@@ -74,8 +74,8 @@
       <div v-else class="grid md:grid-cols-2 gap-6">
         <div v-for="(list, index) in shoppingLists" :key="list.id" 
           class="theme-surface rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-          <div class="flex justify-between items-start mb-4">
-            <div class="flex items-start gap-3 flex-1">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 mb-4">
+            <div class="flex items-start gap-3 min-w-0 overflow-hidden">
               <div :class="[
                 'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
                 index % 4 === 0 ? 'bg-blue-500 bg-opacity-20' : '',
@@ -93,11 +93,11 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
-              <div class="flex-1 min-w-0">
-                <h2 class="text-xl font-bold theme-text truncate">
+              <div class="flex-1 min-w-0 overflow-hidden">
+                <h2 class="block max-w-full text-xl font-bold theme-text truncate pr-2" :title="list.name">
                   {{ list.name }}
                 </h2>
-                <div class="flex items-center gap-4 text-sm theme-text opacity-60 mt-1">
+                <div class="flex flex-wrap items-center gap-4 text-sm theme-text opacity-60 mt-1 min-w-0">
                   <span class="flex items-center gap-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -115,32 +115,35 @@
             </div>
 
             <!-- Desktop: Show buttons separately -->
-            <div class="hidden xl:flex gap-2">
+            <div class="hidden lg:flex shrink-0 justify-self-end gap-2">
               <button @click="openAddItemsModal(list)" 
-                class="theme-btn-primary px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 active:opacity-80 active:scale-95 transform transition-all flex items-center gap-1">
+                :aria-label="$t('Add Products')"
+                class="theme-btn-primary px-2 2xl:px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 active:opacity-80 active:scale-95 transform transition-all flex items-center justify-center 2xl:justify-start gap-0 2xl:gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                {{ $t('+ Products') }}
+                <span class="hidden 2xl:inline">{{ $t('Add Products') }}</span>
               </button>
               <button @click="editList(list)"
-                class="px-3 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:bg-opacity-10 hover:bg-gray-500 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center gap-1">
+                :aria-label="$t('Edit')"
+                class="px-2 2xl:px-3 py-2 border border-current border-opacity-20 rounded-lg theme-text hover:bg-opacity-10 hover:bg-gray-500 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center justify-center 2xl:justify-start gap-0 2xl:gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                {{ $t('Edit') }}
+                <span class="hidden 2xl:inline">{{ $t('Edit') }}</span>
               </button>
               <button @click="handleDeleteList(list.id)"
-                class="px-3 py-2 border border-red-500 border-opacity-50 rounded-lg text-red-600 hover:bg-red-500 hover:bg-opacity-10 active:bg-red-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center gap-1">
+                :aria-label="$t('Delete')"
+                class="px-2 2xl:px-3 py-2 border border-red-500 border-opacity-50 rounded-lg text-red-600 hover:bg-red-500 hover:bg-opacity-10 active:bg-red-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm font-medium flex items-center justify-center 2xl:justify-start gap-0 2xl:gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                {{ $t('Delete') }}
+                <span class="hidden 2xl:inline">{{ $t('Delete') }}</span>
               </button>
             </div>
 
             <!-- Mobile: Dropdown menu -->
-            <div class="xl:hidden relative">
+            <div class="lg:hidden relative shrink-0 justify-self-end">
               <button @click="toggleDropdown(list.id)"
                 class="px-3 py-1 border border-current border-opacity-20 rounded-lg theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 active:scale-95 transform transition-all text-sm">
                 ⋮
@@ -151,7 +154,7 @@
                   openAddItemsModal(list);
                 closeDropdown();
                 " class="w-full text-left px-4 py-2 theme-text hover:opacity-70 active:bg-gray-500 active:bg-opacity-20 transition text-sm">
-                  {{ $t('+ Products') }}
+                  {{ $t('Add Products') }}
                 </button>
                 <button @click="
                   editList(list);
@@ -215,7 +218,7 @@
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium mb-2 theme-text">{{ $t('Name') }}</label>
-          <input v-model="listForm.name" type="text"
+          <input v-model="listForm.name" type="text" maxlength="25"
             class="w-full px-3 py-2 theme-background border border-current border-opacity-20 rounded-lg theme-text focus:outline-none focus:ring-2 focus:ring-blue-500"
             :placeholder="$t('Search shops...')" @keyup.enter="saveList" />
         </div>

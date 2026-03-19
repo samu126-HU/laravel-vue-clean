@@ -7,7 +7,22 @@ import LanguageSwitcher from '../components/LanguageSwitcher.vue';
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
 
+const closeMenu = (menuId, buttonId) => {
+    const menu = document.getElementById(menuId);
+    const button = document.getElementById(buttonId);
+
+    menu?.classList.add('hidden');
+    button?.setAttribute('aria-expanded', 'false');
+};
+
+const closeAllMenus = () => {
+    closeMenu('mobile-nav-menu-1', 'mobile-nav-btn-1');
+    closeMenu('mobile-nav-menu-2', 'mobile-nav-btn-2');
+    closeMenu('desktop-profile-menu', 'desktop-profile-btn');
+};
+
 const logout = () => {
+    closeAllMenus();
     router.post('/logout');
 };
 </script>
@@ -35,7 +50,7 @@ const logout = () => {
                                 </svg>
                             </button>
 
-                            <div id="mobile-nav-menu-1"
+                            <div id="mobile-nav-menu-1" @click="closeAllMenus"
                                 class="hidden absolute right-0 top-full mt-2 w-44 theme-background theme-text rounded-lg shadow-lg z-50 ring-1 ring-gray-700 ring-opacity-5 text-lg"
                                 role="menu" aria-labelledby="mobile-nav-btn-1">
                                 <ul>
@@ -70,7 +85,7 @@ const logout = () => {
                                 </svg>
                             </button>
 
-                            <div id="mobile-nav-menu-2"
+                            <div id="mobile-nav-menu-2" @click="closeAllMenus"
                                 class="hidden absolute right-0 top-full mt-2 w-44 theme-background theme-text rounded-lg shadow-lg z-50 ring-1 ring-gray-700 ring-opacity-5 text-lg"
                                 role="menu" aria-labelledby="mobile-nav-btn-2">
                                 <ul>
@@ -140,8 +155,8 @@ const logout = () => {
                                 </svg>
                             </button>
 
-                            <div id="desktop-profile-menu"
-                                class="hidden absolute right-0 top-full w-56 theme-background theme-text rounded-lg shadow-xl z-50 border-gray-700 border border-opacity-10 border-gray-700 overflow-hidden"
+                            <div id="desktop-profile-menu" @click="closeAllMenus"
+                                class="hidden absolute right-0 top-full w-56 theme-background theme-text rounded-lg shadow-xl z-50 border border-gray-700 border-opacity-10 overflow-hidden"
                                 role="menu" aria-labelledby="desktop-profile-btn">
                                 <div class="">
                                     <!-- User Info Section -->

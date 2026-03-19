@@ -27,7 +27,7 @@ class ShoppingListController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:25',
         ]);
 
         $list = $request->user()->shoppingLists()->create($validated);
@@ -53,7 +53,7 @@ class ShoppingListController extends Controller
         $this->authorize('update', $shoppingList);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:25',
         ]);
 
         $shoppingList->update($validated);

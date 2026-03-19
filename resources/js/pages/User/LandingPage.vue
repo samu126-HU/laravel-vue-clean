@@ -5,6 +5,7 @@ import PageHead from '../../components/PageHead.vue';
 import axios from 'axios';
 
 const page = usePage();
+const isLoggedIn = computed(() => !!page.props.auth?.user);
 const isAdmin = computed(() => {
   const user = page.props.auth?.user;
   return user?.is_admin === true || user?.is_admin === 1 || user?.is_admin === '1';
@@ -153,16 +154,16 @@ onMounted(async () => {
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-current"></div>
         </div>
 
-        <div v-else class="grid md:grid-cols-3 gap-8">
+        <div v-else class="grid gap-8" :class="isLoggedIn ? 'md:grid-cols-3' : 'max-w-sm mx-auto md:grid-cols-1'">
           <div class="text-center transform transition-all duration-500 hover:scale-105">
             <div class="text-5xl font-bold text-blue-500 mb-2 tabular-nums">{{ displayStats.totalShops }}</div>
             <div class="text-sm opacity-75 uppercase tracking-wide font-semibold">{{ $t('Available Shops') }}</div>
           </div>
-          <div class="text-center transform transition-all duration-500 hover:scale-105">
+          <div v-if="isLoggedIn" class="text-center transform transition-all duration-500 hover:scale-105">
             <div class="text-5xl font-bold text-green-500 mb-2 tabular-nums">{{ displayStats.userShoppingLists }}</div>
             <div class="text-sm opacity-75 uppercase tracking-wide font-semibold">{{ $t('Shopping Lists Created') }}</div>
           </div>
-          <div class="text-center transform transition-all duration-500 hover:scale-105">
+          <div v-if="isLoggedIn" class="text-center transform transition-all duration-500 hover:scale-105">
             <div class="text-5xl font-bold text-purple-500 mb-2 tabular-nums">{{ displayStats.userCheckedItems }}</div>
             <div class="text-sm opacity-75 uppercase tracking-wide font-semibold">{{ $t('Items Checked Off') }}</div>
           </div>

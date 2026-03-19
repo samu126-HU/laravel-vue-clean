@@ -9,6 +9,8 @@ Route::get('/shops', fn () => Inertia::render('User/Shops'));
 
 Route::get('/shopping-lists', fn () => Inertia::render('User/ShoppingLists'));
 
+Route::get('/contact', fn () => Inertia::render('User/Contact'));
+
 Route::get('/login', fn () => Inertia::render('Auth/Login'))
     ->middleware('guest')
     ->name('login');

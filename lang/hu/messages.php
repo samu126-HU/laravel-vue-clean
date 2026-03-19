@@ -157,7 +157,7 @@ return [
     // Landing Page
     'navigate_stores_easily' => 'Navigálj könnyen az üzletekben, készíts okos bevásárlólistákat, és soha többé ne veszítsd el a termékek nyomát.',
     'intelligent_shopping_companion' => 'Az intelligens bevásárlótársad.',
-    'browse_shops' => 'Böngéssz az Üzletek Között',
+    'browse_shops' => 'Keress az üzletek Között',
     'explore_stores' => 'Fedezd fel az elérhető üzleteket és azok elrendezését',
     'create_manage_lists' => 'Készíts és kezelj bevásárlólistákat',
     'favourites' => 'Kedvencek',
