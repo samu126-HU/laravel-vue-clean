@@ -149,7 +149,7 @@ onMounted(() => {
     <PageHead title="Shops" />
 
     <div class="min-h-screen theme-background theme-text">
-        <div class="max-w-[85vw] mx-auto px-4 py-12">
+        <div class="md:max-w-[85vw] mx-auto px-4 py-12">
             <div class="flex flex-col md:flex-row md:justify-between md:items-center my-6 md:mb-12 gap-4">
                 <div class="mb-12">
                     <h1
