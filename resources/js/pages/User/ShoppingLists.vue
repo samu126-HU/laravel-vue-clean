@@ -220,7 +220,7 @@
           <label class="block text-sm font-medium mb-2 theme-text">{{ $t('Name') }}</label>
           <input v-model="listForm.name" type="text" maxlength="25"
             class="w-full px-3 py-2 theme-background border border-current border-opacity-20 rounded-lg theme-text focus:outline-none focus:ring-2 focus:ring-blue-500"
-            :placeholder="$t('Search shops...')" @keyup.enter="saveList" />
+            :placeholder="$t('Grandma\'s shopping list')" @keyup.enter="saveList" />
         </div>
       </div>
 
